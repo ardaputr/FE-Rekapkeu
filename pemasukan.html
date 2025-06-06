@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pencatatan Pemasukan</title>
+    <link rel="stylesheet" href="./style/pemasukan.css" />
+    <style>
+      /* Tambahkan CSS berikut jika belum ada di file pemasukan.css */
+      .profile-dropdown .profile-dropdown-content {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: 48px;
+        background: #fff;
+        min-width: 120px;
+        box-shadow: 0 6px 24px rgba(80, 80, 90, 0.11);
+        border-radius: 6px;
+        overflow: hidden;
+        z-index: 100;
+      }
+      .profile-dropdown.active .profile-dropdown-content {
+        display: block;
+      }
+      .profile-dropdown-content a {
+        display: block;
+        padding: 10px 16px;
+        color: #333;
+        text-decoration: none;
+        transition: background 0.13s;
+      }
+      .profile-dropdown-content a:hover {
+        background: #f4f6fb;
+      }
+      .navbar .profile-dropdown {
+        position: relative;
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+      }
+      /* Sembunyikan input user_id */
+      #user_id {
+        display: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="main-container">
+      <div class="sidebar">
+        <h2>RekapKeu</h2>
+        <ul>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li class="active"><a href="pemasukan.html">Pemasukan</a></li>
+          <li><a href="pengeluaran.html">Pengeluaran</a></li>
+          <li><a href="produk.html">Produk</a></li>
+          <li><a href="produkList.html">List Produk</a></li>
+          <li><a href="karyawan.html">Karyawan</a></li>
+        </ul>
+      </div>
+      <div class="content">
+        <!-- Navbar -->
+        <div class="navbar">
+          <div class="profile-dropdown" id="profileDropdown">
+            <div class="profile-avatar">AD</div>
+            <span class="profile-name">Admin</span>
+            <svg height="14" viewBox="0 0 24 24" width="14">
+              <path fill="#444" d="M7 10l5 5 5-5z"></path>
+            </svg>
+            <div class="profile-dropdown-content">
+              <a href="#" id="adminPageBtn">Profil</a>
+              <a href="#" id="logoutBtn">Logout</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form Pemasukan -->
+        <div class="container">
+          <h2>Pencatatan Pemasukan</h2>
+          <form id="incomeForm">
+            <input type="hidden" id="incomeId" />
+            <div class="form-group">
+              <label for="sumber">Sumber Pemasukan</label>
+              <input type="text" id="sumber" required />
+            </div>
+            <div class="form-group">
+              <label for="tanggal">Tanggal</label>
+              <input type="date" id="tanggal" required />
+            </div>
+            <div class="form-group">
+              <label for="jumlah">Jumlah (Rp)</label>
+              <input type="number" id="jumlah" required min="1" />
+            </div>
+            <!-- User ID disembunyikan, diisi otomatis dari token -->
+            <input type="hidden" id="user_id" />
+            <button type="submit" class="btn-tambah" style="margin-bottom: 0">
+              Tambah / Update Pemasukan
+            </button>
+          </form>
+          <div id="formMessage"></div>
+
+          <h3 style="color: #2062c6; margin-top: 30px">Daftar Pemasukan</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Sumber</th>
+                <th>Tanggal</th>
+                <th>Jumlah</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="incomeTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const BASE_URL = "http://localhost:5000/api";
+
+      // Ambil token dari localStorage
+      const token = localStorage.getItem("token");
+      if (!token) {
+        alert("Anda belum login, silakan login dulu.");
+        window.location.href = "login.html";
+      }
+
+      // Decode JWT untuk dapatkan data user
+      function parseJwt(token) {
+        try {
+          const base64Url = token.split(".")[1];
+          const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+          const jsonPayload = decodeURIComponent(
+            atob(base64)
+              .split("")
+              .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+              .join("")
+          );
+          return JSON.parse(jsonPayload);
+        } catch {
+          return null;
+        }
+      }
+
+      const decoded = parseJwt(token);
+      if (!decoded) {
+        alert("Token tidak valid, silakan login ulang.");
+        localStorage.removeItem("token");
+        window.location.href = "login.html";
+      }
+
+      // Simpan userId login
+      const loggedUserId = decoded.id;
+
+      // Set nama user dan inisial avatar di navbar
+      const userName = decoded.name || "User";
+      document.querySelector(".profile-name").textContent = userName;
+      function getInitials(name) {
+        return name
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2);
+      }
+      document.querySelector(".profile-avatar").textContent =
+        getInitials(userName);
+
+      // Set user_id di form sesuai id login
+      document.getElementById("user_id").value = loggedUserId;
+
+      // Fungsi fetch pemasukan semua user (tanpa filter user_id)
+      async function fetchIncomes() {
+        const res = await fetch(`${BASE_URL}/income`);
+        const data = await res.json();
+        const tbody = document.getElementById("incomeTableBody");
+        tbody.innerHTML = "";
+
+        (data.data || []).forEach((income, idx) => {
+          let actionButtons = "";
+          // Tampilkan tombol hanya jika user_id sama dengan user login
+          if (income.user_id === loggedUserId) {
+            actionButtons = `
+          <button class="btn-edit" data-id="${income.id}">✏️</button>
+          <button class="btn-delete" data-id="${income.id}">🗑️</button>
+        `;
+          } else {
+            actionButtons = "-"; // Bisa juga kosong: "" atau pesan lain
+          }
+
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+        <td>${idx + 1}</td>
+        <td>${income.sumber}</td>
+        <td>${income.tanggal}</td>
+        <td>Rp ${Number(income.jumlah).toLocaleString()}</td>
+        <td>${actionButtons}</td>
+      `;
+          tbody.appendChild(tr);
+        });
+
+        attachActionButtons();
+      }
+
+      // Event tombol edit dan delete, hanya untuk tombol yang ada (user yang boleh edit)
+      function attachActionButtons() {
+        document.querySelectorAll(".btn-edit").forEach((btn) => {
+          btn.onclick = async () => {
+            const id = btn.getAttribute("data-id");
+            const res = await fetch(`${BASE_URL}/income`);
+            const data = await res.json();
+            const income = data.data.find((item) => item.id == id);
+            if (!income) return alert("Data tidak ditemukan.");
+
+            document.getElementById("incomeId").value = income.id;
+            document.getElementById("sumber").value = income.sumber;
+            document.getElementById("tanggal").value = income.tanggal;
+            document.getElementById("jumlah").value = income.jumlah;
+            document.getElementById("user_id").value = income.user_id; // tetap user_id data asli
+          };
+        });
+
+        document.querySelectorAll(".btn-delete").forEach((btn) => {
+          btn.onclick = async () => {
+            const id = btn.getAttribute("data-id");
+            if (!confirm("Yakin ingin menghapus pemasukan ini?")) return;
+            try {
+              const res = await fetch(`${BASE_URL}/income/${id}`, {
+                method: "DELETE",
+              });
+              if (res.ok) {
+                alert("Data pemasukan berhasil dihapus.");
+                fetchIncomes();
+                clearForm();
+              } else {
+                alert("Gagal menghapus data.");
+              }
+            } catch {
+              alert("Error saat menghapus data.");
+            }
+          };
+        });
+      }
+
+      // Clear form
+      function clearForm() {
+        document.getElementById("incomeId").value = "";
+        document.getElementById("sumber").value = "";
+        document.getElementById("tanggal").value = "";
+        document.getElementById("jumlah").value = "";
+        // User_id tetap diisi sesuai login, tidak dihapus
+        document.getElementById("user_id").value = loggedUserId;
+      }
+
+      // Submit tambah/update pemasukan
+      document.getElementById("incomeForm").onsubmit = async function (e) {
+        e.preventDefault();
+        const id = document.getElementById("incomeId").value;
+        const sumber = document.getElementById("sumber").value;
+        const tanggal = document.getElementById("tanggal").value;
+        const jumlah = document.getElementById("jumlah").value;
+        const user_id = document.getElementById("user_id").value;
+
+        const formMsg = document.getElementById("formMessage");
+
+        try {
+          let res;
+          if (id) {
+            // Update (user_id tidak diupdate agar tidak berubah owner)
+            res = await fetch(`${BASE_URL}/income/${id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sumber, tanggal, jumlah }),
+            });
+          } else {
+            // Create, sertakan user_id dari login
+            res = await fetch(`${BASE_URL}/income`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sumber, tanggal, jumlah, user_id }),
+            });
+          }
+          const result = await res.json();
+          if (res.ok) {
+            formMsg.style.color = "green";
+            formMsg.innerText = id
+              ? "Data berhasil diperbarui."
+              : "Pemasukan berhasil ditambah!";
+            fetchIncomes();
+            clearForm();
+          } else {
+            formMsg.style.color = "red";
+            formMsg.innerText = result.message || "Gagal simpan data.";
+          }
+        } catch (err) {
+          formMsg.style.color = "red";
+          formMsg.innerText = "Error server.";
+        }
+      };
+
+      // Load awal halaman
+      document.addEventListener("DOMContentLoaded", () => {
+        fetchIncomes();
+      });
+
+      // Dropdown navbar profile
+      document.addEventListener("DOMContentLoaded", () => {
+        const dropdown = document.querySelector(".navbar .profile-dropdown");
+
+        dropdown.addEventListener("click", (e) => {
+          e.stopPropagation();
+          dropdown.classList.toggle("active");
+        });
+
+        document.addEventListener("click", () => {
+          dropdown.classList.remove("active");
+        });
+
+        const adminPageBtn = document.getElementById("adminPageBtn");
+        if (adminPageBtn) {
+          adminPageBtn.onclick = function (e) {
+            e.preventDefault();
+            window.location.href = "admin.html";
+          };
+        }
+
+        const logoutBtn = document.getElementById("logoutBtn");
+        if (logoutBtn) {
+          logoutBtn.onclick = function (e) {
+            e.preventDefault();
+            localStorage.removeItem("token");
+            window.location.href = "login.html";
+          };
+        }
+      });
+    </script>
+  </body>
+</html>

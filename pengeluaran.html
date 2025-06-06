@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pencatatan Pengeluaran</title>
+    <link rel="stylesheet" href="./style/pengeluaran.css" />
+    <style>
+      /* Tambahkan CSS berikut jika belum ada di file pengeluaran.css */
+      .profile-dropdown .profile-dropdown-content {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: 48px;
+        background: #fff;
+        min-width: 120px;
+        box-shadow: 0 6px 24px rgba(80, 80, 90, 0.11);
+        border-radius: 6px;
+        overflow: hidden;
+        z-index: 100;
+      }
+      .profile-dropdown.active .profile-dropdown-content {
+        display: block;
+      }
+      .profile-dropdown-content a {
+        display: block;
+        padding: 10px 16px;
+        color: #333;
+        text-decoration: none;
+        transition: background 0.13s;
+      }
+      .profile-dropdown-content a:hover {
+        background: #f4f6fb;
+      }
+      .navbar .profile-dropdown {
+        position: relative;
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+      }
+      /* Sembunyikan input user_id */
+      #user_id {
+        display: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="main-container">
+      <div class="sidebar">
+        <h2>RekapKeu</h2>
+        <ul>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="pemasukan.html">Pemasukan</a></li>
+          <li class="active"><a href="pengeluaran.html">Pengeluaran</a></li>
+          <li><a href="produk.html">Produk</a></li>
+          <li><a href="produkList.html">List Produk</a></li>
+          <li><a href="karyawan.html">Karyawan</a></li>
+        </ul>
+      </div>
+      <div class="content">
+        <!-- Navbar -->
+        <div class="navbar">
+          <div class="profile-dropdown" id="profileDropdown">
+            <div class="profile-avatar">AD</div>
+            <span class="profile-name">Admin</span>
+            <svg height="14" viewBox="0 0 24 24" width="14">
+              <path fill="#444" d="M7 10l5 5 5-5z"></path>
+            </svg>
+            <div class="profile-dropdown-content">
+              <a href="#" id="adminPageBtn">Profil</a>
+              <a href="#" id="logoutBtn">Logout</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form Pengeluaran -->
+        <div class="container">
+          <h2>Pencatatan Pengeluaran</h2>
+          <form id="expenseForm">
+            <input type="hidden" id="expenseId" />
+            <div class="form-group">
+              <label for="sumber">Sumber Pengeluaran</label>
+              <input type="text" id="sumber" required />
+            </div>
+            <div class="form-group">
+              <label for="tanggal">Tanggal</label>
+              <input type="date" id="tanggal" required />
+            </div>
+            <div class="form-group">
+              <label for="jumlah">Jumlah (Rp)</label>
+              <input type="number" id="jumlah" required min="1" />
+            </div>
+            <!-- User ID disembunyikan dan otomatis diisi -->
+            <input type="hidden" id="user_id" />
+            <button type="submit" class="btn-tambah">
+              Tambah / Update Pengeluaran
+            </button>
+          </form>
+          <div id="formMessage"></div>
+
+          <h3 style="color: #d35400; margin-top: 30px">Daftar Pengeluaran</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Sumber</th>
+                <th>Tanggal</th>
+                <th>Jumlah</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="expenseTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const BASE_URL = "http://localhost:5000/api";
+
+      // Ambil token dari localStorage
+      const token = localStorage.getItem("token");
+      if (!token) {
+        alert("Anda belum login, silakan login dulu.");
+        window.location.href = "login.html";
+      }
+
+      // Decode JWT untuk dapatkan data user
+      function parseJwt(token) {
+        try {
+          const base64Url = token.split(".")[1];
+          const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+          const jsonPayload = decodeURIComponent(
+            atob(base64)
+              .split("")
+              .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+              .join("")
+          );
+          return JSON.parse(jsonPayload);
+        } catch {
+          return null;
+        }
+      }
+
+      const decoded = parseJwt(token);
+      if (!decoded) {
+        alert("Token tidak valid, silakan login ulang.");
+        localStorage.removeItem("token");
+        window.location.href = "login.html";
+      }
+
+      // Simpan userId login
+      const loggedUserId = decoded.id;
+
+      // Set nama user dan inisial avatar di navbar
+      const userName = decoded.name || "User";
+      document.querySelector(".profile-name").textContent = userName;
+      function getInitials(name) {
+        return name
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2);
+      }
+      document.querySelector(".profile-avatar").textContent =
+        getInitials(userName);
+
+      // Set user_id di form sesuai user login
+      document.getElementById("user_id").value = loggedUserId;
+
+      // Fetch semua pengeluaran (tanpa filter user_id)
+      async function fetchExpenses() {
+        const res = await fetch(`${BASE_URL}/expense`);
+        const data = await res.json();
+        const tbody = document.getElementById("expenseTableBody");
+        tbody.innerHTML = "";
+
+        (data.data || []).forEach((expense, idx) => {
+          let actionButtons = "";
+          if (expense.user_id === loggedUserId) {
+            actionButtons = `
+              <button class="btn-edit" data-id="${expense.id}">✏️</button>
+              <button class="btn-delete" data-id="${expense.id}">🗑️</button>
+            `;
+          } else {
+            actionButtons = "-";
+          }
+
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${idx + 1}</td>
+            <td>${expense.sumber}</td>
+            <td>${expense.tanggal}</td>
+            <td>Rp ${Number(expense.jumlah).toLocaleString()}</td>
+            <td>${actionButtons}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        attachActionButtons();
+      }
+
+      // Event tombol edit dan delete
+      function attachActionButtons() {
+        document.querySelectorAll(".btn-edit").forEach((btn) => {
+          btn.onclick = async () => {
+            const id = btn.getAttribute("data-id");
+            const res = await fetch(`${BASE_URL}/expense`);
+            const data = await res.json();
+            const expense = data.data.find((item) => item.id == id);
+            if (!expense) return alert("Data tidak ditemukan.");
+
+            document.getElementById("expenseId").value = expense.id;
+            document.getElementById("sumber").value = expense.sumber;
+            document.getElementById("tanggal").value = expense.tanggal;
+            document.getElementById("jumlah").value = expense.jumlah;
+            document.getElementById("user_id").value = expense.user_id; // tetap user_id asli
+          };
+        });
+
+        document.querySelectorAll(".btn-delete").forEach((btn) => {
+          btn.onclick = async () => {
+            const id = btn.getAttribute("data-id");
+            if (!confirm("Yakin ingin menghapus pengeluaran ini?")) return;
+            try {
+              const res = await fetch(`${BASE_URL}/expense/${id}`, {
+                method: "DELETE",
+              });
+              if (res.ok) {
+                alert("Data pengeluaran berhasil dihapus.");
+                fetchExpenses();
+                clearForm();
+              } else {
+                alert("Gagal menghapus data.");
+              }
+            } catch {
+              alert("Error saat menghapus data.");
+            }
+          };
+        });
+      }
+
+      // Clear form
+      function clearForm() {
+        document.getElementById("expenseId").value = "";
+        document.getElementById("sumber").value = "";
+        document.getElementById("tanggal").value = "";
+        document.getElementById("jumlah").value = "";
+        document.getElementById("user_id").value = loggedUserId;
+      }
+
+      // Submit tambah/update pengeluaran
+      document.getElementById("expenseForm").onsubmit = async function (e) {
+        e.preventDefault();
+        const id = document.getElementById("expenseId").value;
+        const sumber = document.getElementById("sumber").value;
+        const tanggal = document.getElementById("tanggal").value;
+        const jumlah = document.getElementById("jumlah").value;
+        const user_id = document.getElementById("user_id").value;
+
+        const formMsg = document.getElementById("formMessage");
+
+        try {
+          let res;
+          if (id) {
+            res = await fetch(`${BASE_URL}/expense/${id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sumber, tanggal, jumlah }),
+            });
+          } else {
+            res = await fetch(`${BASE_URL}/expense`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sumber, tanggal, jumlah, user_id }),
+            });
+          }
+          const result = await res.json();
+          if (res.ok) {
+            formMsg.style.color = "green";
+            formMsg.innerText = id
+              ? "Data berhasil diperbarui."
+              : "Pengeluaran berhasil ditambah!";
+            fetchExpenses();
+            clearForm();
+          } else {
+            formMsg.style.color = "red";
+            formMsg.innerText = result.message || "Gagal simpan data.";
+          }
+        } catch (err) {
+          formMsg.style.color = "red";
+          formMsg.innerText = "Error server.";
+        }
+      };
+
+      // Load awal halaman
+      document.addEventListener("DOMContentLoaded", () => {
+        fetchExpenses();
+      });
+
+      // Dropdown navbar profile
+      document.addEventListener("DOMContentLoaded", () => {
+        const dropdown = document.querySelector(".navbar .profile-dropdown");
+
+        dropdown.addEventListener("click", (e) => {
+          e.stopPropagation();
+          dropdown.classList.toggle("active");
+        });
+
+        document.addEventListener("click", () => {
+          dropdown.classList.remove("active");
+        });
+
+        const adminPageBtn = document.getElementById("adminPageBtn");
+        if (adminPageBtn) {
+          adminPageBtn.onclick = function (e) {
+            e.preventDefault();
+            window.location.href = "admin.html";
+          };
+        }
+
+        const logoutBtn = document.getElementById("logoutBtn");
+        if (logoutBtn) {
+          logoutBtn.onclick = function (e) {
+            e.preventDefault();
+            localStorage.removeItem("token");
+            window.location.href = "login.html";
+          };
+        }
+      });
+    </script>
+  </body>
+</html>
