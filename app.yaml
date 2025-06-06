@@ -1,0 +1,39 @@
+runtime: python39
+
+handlers:
+  - url: /dashboard.html
+    static_files: dashboard.html
+    upload: dashboard.html
+
+  - url: /karyawan.html
+    static_files: karyawan.html
+    upload: karyawan.html
+
+  - url: /login.html
+    static_files: login.html
+    upload: login.html
+
+  - url: /pemasukan.html
+    static_files: pemasukan.html
+    upload: pemasukan.html
+
+  - url: /pengeluaran.html
+    static_files: pengeluaran.html
+    upload: pengeluaran.html
+
+  - url: /produk.html
+    static_files: produk.html
+    upload: produk.html
+
+  - url: /produkList.html
+    static_files: produkList.html
+    upload: produkList.html
+
+  - url: /register.html
+    static_files: register.html
+    upload: register.html
+
+  # Catch-all handler for any other files
+  - url: /style/(.*)
+    static_files: style/\1
+    upload: style/(.*)
