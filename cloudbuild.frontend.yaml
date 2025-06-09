@@ -33,3 +33,8 @@ steps:
 # Define the images that will be built and pushed as part of this build process.
 images:
 - 'gcr.io/$PROJECT_ID/fe-rekapkeu:$COMMIT_SHA' # Removed the extra word "perbaiki"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: "1600s" # Timeout untuk seluruh build
