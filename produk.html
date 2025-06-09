@@ -80,7 +80,8 @@
     </div>
 
     <script>
-     const BASE_URL = "https://rekapkeu-rekapkeube-525057870643.us-central1.run.app/api";
+      const BASE_URL =
+        "https://rekapkeu-rekapkeube-525057870643.us-central1.run.app/api";
 
       // Ambil token dari localStorage
       const token = localStorage.getItem("token");
@@ -160,7 +161,7 @@
             }
 
             const fotoSrc = product.foto
-              ? `http://localhost:5000/uploads/${product.foto}`
+              ? `https://rekapkeu-rekapkeube-525057870643.us-central1.run.app/uploads/${product.foto}`
               : "";
 
             const tr = document.createElement("tr");
@@ -203,7 +204,8 @@
               if (!product) return alert("Data tidak ditemukan.");
 
               document.getElementById("productId").value = product.id;
-              document.getElementById("nama_produk").value = product.nama_produk;
+              document.getElementById("nama_produk").value =
+                product.nama_produk;
               document.getElementById("harga").value = product.harga;
               document.getElementById("deskripsi").value =
                 product.deskripsi || "";
