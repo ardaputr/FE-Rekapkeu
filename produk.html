@@ -9,7 +9,6 @@
 
   <body>
     <div class="main-container">
-      <!-- Sidebar -->
       <div class="sidebar">
         <h2>RekapKeu</h2>
         <ul>
@@ -21,9 +20,7 @@
           <li><a href="karyawan.html">Karyawan</a></li>
         </ul>
       </div>
-      <!-- Main Content -->
       <div class="content">
-        <!-- Navbar -->
         <div class="navbar">
           <div class="profile-dropdown" id="profileDropdown">
             <div class="profile-avatar">AD</div>
@@ -38,7 +35,6 @@
           </div>
         </div>
 
-        <!-- Container -->
         <div class="container">
           <h2>Pencatatan Produk</h2>
           <form id="productForm" enctype="multipart/form-data">
@@ -59,7 +55,6 @@
               <label for="foto">Foto Produk</label>
               <input type="file" id="foto" name="foto" accept="image/*" />
             </div>
-            <!-- user_id disembunyikan -->
             <input type="hidden" id="user_id" name="user_id" />
             <button type="submit" class="btn-tambah">
               Tambah / Update Produk
@@ -106,23 +101,24 @@
               .join("")
           );
           return JSON.parse(jsonPayload);
-        } catch {
+        } catch (error) {
+          console.error("Error decoding JWT:", error);
           return null;
         }
       }
 
       const decoded = parseJwt(token);
-      if (!decoded) {
-        alert("Token tidak valid, silakan login ulang.");
+      let loggedUserId = null;
+      if (decoded && decoded.exp * 1000 > Date.now()) {
+        loggedUserId = decoded.id;
+      } else {
+        alert("Token tidak valid atau sudah kadaluarsa, silakan login ulang.");
         localStorage.removeItem("token");
         window.location.href = "login.html";
       }
 
-      // Simpan userId login
-      const loggedUserId = decoded.id;
-
       // Set nama user dan inisial avatar di navbar
-      const userName = decoded.name || "User";
+      const userName = decoded ? decoded.name || "User" : "User";
       document.querySelector(".profile-name").textContent = userName;
       function getInitials(name) {
         return name
@@ -136,32 +132,39 @@
         getInitials(userName);
 
       // Set user_id di form sesuai user login
-      document.getElementById("user_id").value = loggedUserId;
+      if (loggedUserId) {
+        document.getElementById("user_id").value = loggedUserId;
+      }
 
       // Fetch semua produk (tanpa filter user_id)
       async function fetchProducts() {
-        const res = await fetch(`${BASE_URL}/product`);
-        const data = await res.json();
-        const tbody = document.getElementById("productTableBody");
-        tbody.innerHTML = "";
+        try {
+          const res = await fetch(`${BASE_URL}/product`, {
+            headers: {
+              Authorization: "Bearer " + token, // Tambahkan token di header
+            },
+          });
+          const data = await res.json();
+          const tbody = document.getElementById("productTableBody");
+          tbody.innerHTML = "";
 
-        (data.data || []).forEach((product, idx) => {
-          let actionButtons = "";
-          if (product.user_id === loggedUserId) {
-            actionButtons = `
+          (data.data || []).forEach((product, idx) => {
+            let actionButtons = "";
+            if (product.user_id === loggedUserId) {
+              actionButtons = `
               <button class="btn-edit" data-id="${product.id}">✏️</button>
               <button class="btn-delete" data-id="${product.id}">🗑️</button>
             `;
-          } else {
-            actionButtons = "-";
-          }
+            } else {
+              actionButtons = "-";
+            }
 
-          const fotoSrc = product.foto
-            ? `http://localhost:5000/uploads/${product.foto}`
-            : "";
+            const fotoSrc = product.foto
+              ? `http://localhost:5000/uploads/${product.foto}`
+              : "";
 
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
             <td>${idx + 1}</td>
             <td>${product.nama_produk}</td>
             <td>Rp ${Number(product.harga).toLocaleString()}</td>
@@ -171,10 +174,15 @@
             }</td>
             <td>${actionButtons}</td>
           `;
-          tbody.appendChild(tr);
-        });
+            tbody.appendChild(tr);
+          });
 
-        attachActionButtons();
+          attachActionButtons();
+        } catch (error) {
+          console.error("Error fetching products:", error);
+          document.getElementById("productTableBody").innerHTML =
+            '<tr><td colspan="6" style="color:red;">Gagal memuat data produk.</td></tr>';
+        }
       }
 
       // Event tombol edit dan delete
@@ -182,19 +190,30 @@
         document.querySelectorAll(".btn-edit").forEach((btn) => {
           btn.onclick = async () => {
             const id = btn.getAttribute("data-id");
-            const res = await fetch(`${BASE_URL}/product`);
-            const data = await res.json();
-            const product = data.data.find((item) => item.id == id);
-            if (!product) return alert("Data tidak ditemukan.");
+            try {
+              // Fetch single product data by ID
+              const res = await fetch(`${BASE_URL}/product/${id}`, {
+                headers: {
+                  Authorization: "Bearer " + token,
+                },
+              });
+              const data = await res.json();
+              const product = data.data; // Assuming API returns single object under 'data'
 
-            document.getElementById("productId").value = product.id;
-            document.getElementById("nama_produk").value = product.nama_produk;
-            document.getElementById("harga").value = product.harga;
-            document.getElementById("deskripsi").value =
-              product.deskripsi || "";
-            // Tidak bisa set ulang input file
-            // User id tetap hidden
-            document.getElementById("user_id").value = product.user_id;
+              if (!product) return alert("Data tidak ditemukan.");
+
+              document.getElementById("productId").value = product.id;
+              document.getElementById("nama_produk").value = product.nama_produk;
+              document.getElementById("harga").value = product.harga;
+              document.getElementById("deskripsi").value =
+                product.deskripsi || "";
+              // Tidak bisa set ulang input file
+              // User id tetap hidden
+              document.getElementById("user_id").value = product.user_id;
+            } catch (error) {
+              console.error("Error fetching product for edit:", error);
+              alert("Error saat mengambil data produk untuk diedit.");
+            }
           };
         });
 
@@ -205,16 +224,20 @@
             try {
               const res = await fetch(`${BASE_URL}/product/${id}`, {
                 method: "DELETE",
+                headers: {
+                  Authorization: "Bearer " + token, // Tambahkan token di header
+                },
               });
               if (res.ok) {
                 alert("Data produk berhasil dihapus.");
                 fetchProducts();
                 clearForm();
               } else {
-                alert("Gagal menghapus data.");
+                const errorData = await res.json();
+                alert(errorData.message || "Gagal menghapus data.");
               }
-            } catch {
-              alert("Error saat menghapus data.");
+            } catch (error) {
+              alert("Error saat menghapus data: " + error.message);
             }
           };
         });
@@ -227,7 +250,9 @@
         document.getElementById("harga").value = "";
         document.getElementById("deskripsi").value = "";
         document.getElementById("foto").value = "";
-        document.getElementById("user_id").value = loggedUserId;
+        if (loggedUserId) {
+          document.getElementById("user_id").value = loggedUserId;
+        }
       }
 
       // Submit tambah/update produk
@@ -238,36 +263,55 @@
         const formData = new FormData(form);
 
         // Pastikan user_id dalam formData sesuai user login
-        formData.set("user_id", loggedUserId);
+        if (loggedUserId) {
+          formData.set("user_id", loggedUserId);
+        } else {
+          document.getElementById("formMessage").style.color = "red";
+          document.getElementById("formMessage").innerText =
+            "ID pengguna tidak ditemukan. Silakan login ulang.";
+          return;
+        }
 
         let res;
-        if (id) {
-          // Update
-          res = await fetch(`${BASE_URL}/product/${id}`, {
-            method: "PUT",
-            body: formData,
-          });
-        } else {
-          // Create
-          res = await fetch(`${BASE_URL}/product`, {
-            method: "POST",
-            body: formData,
-          });
-        }
-        const result = await res.json();
-        const formMsg = document.getElementById("formMessage");
-        if (res.ok) {
-          formMsg.style.color = "green";
-          formMsg.innerText = id
-            ? "Produk berhasil diperbarui!"
-            : "Produk berhasil ditambah!";
-          fetchProducts();
-          clearForm();
-        } else {
-          formMsg.style.color = "red";
-          formMsg.innerText =
-            result.message ||
-            (id ? "Gagal memperbarui produk." : "Gagal tambah produk.");
+        try {
+          if (id) {
+            // Update
+            res = await fetch(`${BASE_URL}/product/${id}`, {
+              method: "PUT",
+              headers: {
+                Authorization: "Bearer " + token, // Penting: FormData tidak perlu Content-Type
+              },
+              body: formData,
+            });
+          } else {
+            // Create
+            res = await fetch(`${BASE_URL}/product`, {
+              method: "POST",
+              headers: {
+                Authorization: "Bearer " + token,
+              },
+              body: formData,
+            });
+          }
+          const result = await res.json();
+          const formMsg = document.getElementById("formMessage");
+          if (res.ok) {
+            formMsg.style.color = "green";
+            formMsg.innerText = id
+              ? "Produk berhasil diperbarui!"
+              : "Produk berhasil ditambah!";
+            fetchProducts();
+            clearForm();
+          } else {
+            formMsg.style.color = "red";
+            formMsg.innerText =
+              result.message ||
+              (id ? "Gagal memperbarui produk." : "Gagal tambah produk.");
+          }
+        } catch (err) {
+          document.getElementById("formMessage").style.color = "red";
+          document.getElementById("formMessage").innerText =
+            "Error server: " + err.message;
         }
       };
 

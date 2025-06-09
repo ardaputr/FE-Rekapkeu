@@ -204,12 +204,13 @@
             body: JSON.stringify({ email, password }),
           });
           const data = await res.json();
+          console.log(data)
           if (res.ok) {
             document.getElementById("loginMessage").style.display = "none";
             document.getElementById("successMessage").style.display = "block";
             document.getElementById("successMessage").innerText =
               "Login berhasil!";
-            if (data.token) localStorage.setItem("token", data.token);
+            if (data.accessToken) localStorage.setItem("token", data.accessToken);
             setTimeout(() => (window.location.href = "dashboard.html"), 1800);
           } else {
             document.getElementById("successMessage").style.display = "none";

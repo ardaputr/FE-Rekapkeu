@@ -1,12 +1,28 @@
 steps:
-  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
-    entrypoint: gcloud
-    args:
-      - app
-      - deploy
-      - app.yaml
-      - "--quiet"
+  # Step 1: Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/rekapkeu-frontend:$COMMIT_SHA', '.']
     dir: "."
+
+  # Step 2: Push the Docker image to Google Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/rekapkeu-frontend:$COMMIT_SHA']
+    dir: "."
+
+  # Step 3: Deploy the image to Cloud Run (contoh, Anda bisa mengganti ini ke platform lain)
+  # Pastikan Anda sudah mengaktifkan Cloud Run API dan memiliki Service Account yang memadai
+  # Jika Anda menggunakan regional endpoint, sesuaikan --region
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    args:
+      - run
+      - deploy
+      - rekapkeu-frontend # Nama service Cloud Run Anda
+      - --image=gcr.io/$PROJECT_ID/rekapkeu-frontend:$COMMIT_SHA
+      - --platform=managed
+      - --region=us-central1 # Ganti dengan region yang Anda inginkan, misal: asia-southeast2 (Jakarta)
+      - --allow-unauthenticated # Opsional: Jika Anda ingin aplikasi bisa diakses publik tanpa otentikasi
+      - --quiet
+    dir: "." # Direktori root proyek
 
 options:
   logging: CLOUD_LOGGING_ONLY

@@ -9,7 +9,6 @@
 
   <body>
     <div class="main-container">
-      <!-- Sidebar -->
       <div class="sidebar">
         <h2>RekapKeu</h2>
         <ul>
@@ -21,7 +20,6 @@
           <li class="active"><a href="karyawan.html">Karyawan</a></li>
         </ul>
       </div>
-      <!-- Main Content -->
       <div class="content">
         <div class="navbar">
           <div class="profile-dropdown" id="profileDropdown">
@@ -60,7 +58,6 @@
               <label for="kontak">Kontak</label>
               <input type="text" id="kontak" name="kontak" />
             </div>
-            <!-- user_id hidden -->
             <input type="hidden" id="user_id" name="user_id" />
             <button type="submit" class="btn-tambah">
               Tambah / Update Karyawan
@@ -108,22 +105,24 @@
               .join("")
           );
           return JSON.parse(jsonPayload);
-        } catch {
+        } catch (error) {
+          console.error("Error decoding JWT:", error);
           return null;
         }
       }
 
       const decoded = parseJwt(token);
-      if (!decoded) {
-        alert("Token tidak valid, silakan login ulang.");
+      let loggedUserId = null;
+      if (decoded && decoded.exp * 1000 > Date.now()) {
+        loggedUserId = decoded.id;
+      } else {
+        alert("Token tidak valid atau sudah kadaluarsa, silakan login ulang.");
         localStorage.removeItem("token");
         window.location.href = "login.html";
       }
 
-      const loggedUserId = decoded.id;
-
       // Set nama user dan inisial avatar di navbar
-      const userName = decoded.name || "User";
+      const userName = decoded ? decoded.name || "User" : "User";
       document.querySelector(".profile-name").textContent = userName;
       function getInitials(name) {
         return name
@@ -137,28 +136,35 @@
         getInitials(userName);
 
       // Set user_id hidden form sesuai login
-      document.getElementById("user_id").value = loggedUserId;
+      if (loggedUserId) {
+        document.getElementById("user_id").value = loggedUserId;
+      }
 
       // Fetch semua karyawan tanpa filter user_id
       async function fetchEmployees() {
-        const res = await fetch(`${BASE_URL}/employee`);
-        const data = await res.json();
-        const tbody = document.getElementById("employeeTableBody");
-        tbody.innerHTML = "";
+        try {
+          const res = await fetch(`${BASE_URL}/employee`, {
+            headers: {
+              Authorization: "Bearer " + token, // Tambahkan token di header
+            },
+          });
+          const data = await res.json();
+          const tbody = document.getElementById("employeeTableBody");
+          tbody.innerHTML = "";
 
-        (data.data || []).forEach((emp, idx) => {
-          let actionButtons = "";
-          if (emp.user_id === loggedUserId) {
-            actionButtons = `
+          (data.data || []).forEach((emp, idx) => {
+            let actionButtons = "";
+            if (emp.user_id === loggedUserId) {
+              actionButtons = `
               <button class="btn-edit" data-id="${emp.id}">✏️</button>
               <button class="btn-delete" data-id="${emp.id}">🗑️</button>
             `;
-          } else {
-            actionButtons = "-";
-          }
+            } else {
+              actionButtons = "-";
+            }
 
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
             <td>${idx + 1}</td>
             <td>${emp.nama}</td>
             <td>${emp.posisi}</td>
@@ -167,10 +173,15 @@
             <td>${emp.kontak || "-"}</td>
             <td>${actionButtons}</td>
           `;
-          tbody.appendChild(tr);
-        });
+            tbody.appendChild(tr);
+          });
 
-        attachActionButtons();
+          attachActionButtons();
+        } catch (error) {
+          console.error("Error fetching employees:", error);
+          document.getElementById("employeeTableBody").innerHTML =
+            '<tr><td colspan="7" style="color:red;">Gagal memuat data karyawan.</td></tr>';
+        }
       }
 
       // Pasang event tombol edit dan delete
@@ -178,19 +189,30 @@
         document.querySelectorAll(".btn-edit").forEach((btn) => {
           btn.onclick = async () => {
             const id = btn.getAttribute("data-id");
-            const res = await fetch(`${BASE_URL}/employee`);
-            const data = await res.json();
-            const emp = data.data.find((item) => item.id == id);
-            if (!emp) return alert("Data tidak ditemukan.");
+            try {
+              // Fetch single employee data by ID
+              const res = await fetch(`${BASE_URL}/employee/${id}`, {
+                headers: {
+                  Authorization: "Bearer " + token,
+                },
+              });
+              const data = await res.json();
+              const emp = data.data; // Assuming API returns single object under 'data'
 
-            document.getElementById("employeeId").value = emp.id;
-            document.getElementById("nama").value = emp.nama;
-            document.getElementById("posisi").value = emp.posisi;
-            document.getElementById("alamat").value = emp.alamat || "";
-            document.getElementById("umur").value = emp.umur || "";
-            document.getElementById("kontak").value = emp.kontak || "";
-            // User id tetap sesuai pemilik data
-            document.getElementById("user_id").value = emp.user_id;
+              if (!emp) return alert("Data tidak ditemukan.");
+
+              document.getElementById("employeeId").value = emp.id;
+              document.getElementById("nama").value = emp.nama;
+              document.getElementById("posisi").value = emp.posisi;
+              document.getElementById("alamat").value = emp.alamat || "";
+              document.getElementById("umur").value = emp.umur || "";
+              document.getElementById("kontak").value = emp.kontak || "";
+              // User id tetap sesuai pemilik data
+              document.getElementById("user_id").value = emp.user_id;
+            } catch (error) {
+              console.error("Error fetching employee for edit:", error);
+              alert("Error saat mengambil data karyawan untuk diedit.");
+            }
           };
         });
 
@@ -201,16 +223,20 @@
             try {
               const res = await fetch(`${BASE_URL}/employee/${id}`, {
                 method: "DELETE",
+                headers: {
+                  Authorization: "Bearer " + token, // Tambahkan token di header
+                },
               });
               if (res.ok) {
                 alert("Data karyawan berhasil dihapus.");
                 fetchEmployees();
                 clearForm();
               } else {
-                alert("Gagal menghapus data.");
+                const errorData = await res.json();
+                alert(errorData.message || "Gagal menghapus data.");
               }
-            } catch {
-              alert("Error saat menghapus data.");
+            } catch (error) {
+              alert("Error saat menghapus data: " + error.message);
             }
           };
         });
@@ -225,7 +251,9 @@
         document.getElementById("umur").value = "";
         document.getElementById("kontak").value = "";
         // Kembalikan user_id ke user yang login
-        document.getElementById("user_id").value = loggedUserId;
+        if (loggedUserId) {
+          document.getElementById("user_id").value = loggedUserId;
+        }
       }
 
       // Submit tambah / update data
@@ -237,32 +265,40 @@
         const alamat = document.getElementById("alamat").value;
         const umur = document.getElementById("umur").value;
         const kontak = document.getElementById("kontak").value;
-        const user_id = document.getElementById("user_id").value;
+        const user_id = document.getElementById("user_id").value; // This should already be loggedUserId
 
         const formMsg = document.getElementById("formMessage");
 
+        // Ensure user_id is set before sending (important for create)
+        if (!user_id && !id) {
+          formMsg.style.color = "red";
+          formMsg.innerText = "ID pengguna tidak ditemukan. Silakan login ulang.";
+          return;
+        }
+
         try {
           let res;
+          const bodyData = { nama, posisi, alamat, umur, kontak };
+
           if (id) {
             // Update (user_id tidak diubah supaya tetap milik user pemilik)
             res = await fetch(`${BASE_URL}/employee/${id}`, {
               method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ nama, posisi, alamat, umur, kontak }),
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + token,
+              },
+              body: JSON.stringify(bodyData),
             });
           } else {
             // Create (sertakan user_id)
             res = await fetch(`${BASE_URL}/employee`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                nama,
-                posisi,
-                alamat,
-                umur,
-                kontak,
-                user_id,
-              }),
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + token,
+              },
+              body: JSON.stringify({ ...bodyData, user_id: loggedUserId }), // Ensure user_id is passed for creation
             });
           }
           const result = await res.json();
@@ -279,7 +315,7 @@
           }
         } catch (err) {
           formMsg.style.color = "red";
-          formMsg.innerText = "Error server.";
+          formMsg.innerText = "Error server: " + err.message;
         }
       };
 

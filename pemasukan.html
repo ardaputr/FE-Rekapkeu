@@ -59,7 +59,6 @@
         </ul>
       </div>
       <div class="content">
-        <!-- Navbar -->
         <div class="navbar">
           <div class="profile-dropdown" id="profileDropdown">
             <div class="profile-avatar">AD</div>
@@ -74,7 +73,6 @@
           </div>
         </div>
 
-        <!-- Form Pemasukan -->
         <div class="container">
           <h2>Pencatatan Pemasukan</h2>
           <form id="incomeForm">
@@ -91,7 +89,6 @@
               <label for="jumlah">Jumlah (Rp)</label>
               <input type="number" id="jumlah" required min="1" />
             </div>
-            <!-- User ID disembunyikan, diisi otomatis dari token -->
             <input type="hidden" id="user_id" />
             <button type="submit" class="btn-tambah" style="margin-bottom: 0">
               Tambah / Update Pemasukan
@@ -138,23 +135,24 @@
               .join("")
           );
           return JSON.parse(jsonPayload);
-        } catch {
+        } catch (error) {
+          console.error("Error decoding JWT:", error);
           return null;
         }
       }
 
       const decoded = parseJwt(token);
-      if (!decoded) {
-        alert("Token tidak valid, silakan login ulang.");
+      let loggedUserId = null;
+      if (decoded && decoded.exp * 1000 > Date.now()) {
+        loggedUserId = decoded.id;
+      } else {
+        alert("Token tidak valid atau sudah kadaluarsa, silakan login ulang.");
         localStorage.removeItem("token");
         window.location.href = "login.html";
       }
 
-      // Simpan userId login
-      const loggedUserId = decoded.id;
-
       // Set nama user dan inisial avatar di navbar
-      const userName = decoded.name || "User";
+      const userName = decoded ? decoded.name || "User" : "User";
       document.querySelector(".profile-name").textContent = userName;
       function getInitials(name) {
         return name
@@ -168,39 +166,51 @@
         getInitials(userName);
 
       // Set user_id di form sesuai id login
-      document.getElementById("user_id").value = loggedUserId;
+      if (loggedUserId) {
+        document.getElementById("user_id").value = loggedUserId;
+      }
 
       // Fungsi fetch pemasukan semua user (tanpa filter user_id)
       async function fetchIncomes() {
-        const res = await fetch(`${BASE_URL}/income`);
-        const data = await res.json();
-        const tbody = document.getElementById("incomeTableBody");
-        tbody.innerHTML = "";
+        try {
+          const res = await fetch(`${BASE_URL}/income`, {
+            headers: {
+              Authorization: "Bearer " + token, // Tambahkan token di header
+            },
+          });
+          const data = await res.json();
+          const tbody = document.getElementById("incomeTableBody");
+          tbody.innerHTML = "";
 
-        (data.data || []).forEach((income, idx) => {
-          let actionButtons = "";
-          // Tampilkan tombol hanya jika user_id sama dengan user login
-          if (income.user_id === loggedUserId) {
-            actionButtons = `
+          (data.data || []).forEach((income, idx) => {
+            let actionButtons = "";
+            // Tampilkan tombol hanya jika user_id sama dengan user login
+            if (income.user_id === loggedUserId) {
+              actionButtons = `
           <button class="btn-edit" data-id="${income.id}">✏️</button>
           <button class="btn-delete" data-id="${income.id}">🗑️</button>
         `;
-          } else {
-            actionButtons = "-"; // Bisa juga kosong: "" atau pesan lain
-          }
+            } else {
+              actionButtons = "-"; // Bisa juga kosong: "" atau pesan lain
+            }
 
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
         <td>${idx + 1}</td>
         <td>${income.sumber}</td>
         <td>${income.tanggal}</td>
         <td>Rp ${Number(income.jumlah).toLocaleString()}</td>
         <td>${actionButtons}</td>
       `;
-          tbody.appendChild(tr);
-        });
+            tbody.appendChild(tr);
+          });
 
-        attachActionButtons();
+          attachActionButtons();
+        } catch (error) {
+          console.error("Error fetching incomes:", error);
+          document.getElementById("incomeTableBody").innerHTML =
+            '<tr><td colspan="5" style="color:red;">Gagal memuat data pemasukan.</td></tr>';
+        }
       }
 
       // Event tombol edit dan delete, hanya untuk tombol yang ada (user yang boleh edit)
@@ -208,16 +218,27 @@
         document.querySelectorAll(".btn-edit").forEach((btn) => {
           btn.onclick = async () => {
             const id = btn.getAttribute("data-id");
-            const res = await fetch(`${BASE_URL}/income`);
-            const data = await res.json();
-            const income = data.data.find((item) => item.id == id);
-            if (!income) return alert("Data tidak ditemukan.");
+            try {
+              // Fetch single income data by ID
+              const res = await fetch(`${BASE_URL}/income/${id}`, {
+                headers: {
+                  Authorization: "Bearer " + token,
+                },
+              });
+              const data = await res.json();
+              const income = data.data; // Assuming API returns single object under 'data'
 
-            document.getElementById("incomeId").value = income.id;
-            document.getElementById("sumber").value = income.sumber;
-            document.getElementById("tanggal").value = income.tanggal;
-            document.getElementById("jumlah").value = income.jumlah;
-            document.getElementById("user_id").value = income.user_id; // tetap user_id data asli
+              if (!income) return alert("Data tidak ditemukan.");
+
+              document.getElementById("incomeId").value = income.id;
+              document.getElementById("sumber").value = income.sumber;
+              document.getElementById("tanggal").value = income.tanggal;
+              document.getElementById("jumlah").value = income.jumlah;
+              document.getElementById("user_id").value = income.user_id; // tetap user_id data asli
+            } catch (error) {
+              console.error("Error fetching income for edit:", error);
+              alert("Error saat mengambil data pemasukan untuk diedit.");
+            }
           };
         });
 
@@ -228,16 +249,20 @@
             try {
               const res = await fetch(`${BASE_URL}/income/${id}`, {
                 method: "DELETE",
+                headers: {
+                  Authorization: "Bearer " + token, // Tambahkan token di header
+                },
               });
               if (res.ok) {
                 alert("Data pemasukan berhasil dihapus.");
                 fetchIncomes();
                 clearForm();
               } else {
-                alert("Gagal menghapus data.");
+                const errorData = await res.json();
+                alert(errorData.message || "Gagal menghapus data.");
               }
-            } catch {
-              alert("Error saat menghapus data.");
+            } catch (error) {
+              alert("Error saat menghapus data: " + error.message);
             }
           };
         });
@@ -250,7 +275,9 @@
         document.getElementById("tanggal").value = "";
         document.getElementById("jumlah").value = "";
         // User_id tetap diisi sesuai login, tidak dihapus
-        document.getElementById("user_id").value = loggedUserId;
+        if (loggedUserId) {
+          document.getElementById("user_id").value = loggedUserId;
+        }
       }
 
       // Submit tambah/update pemasukan
@@ -260,25 +287,39 @@
         const sumber = document.getElementById("sumber").value;
         const tanggal = document.getElementById("tanggal").value;
         const jumlah = document.getElementById("jumlah").value;
-        const user_id = document.getElementById("user_id").value;
+        const user_id = document.getElementById("user_id").value; // This should already be loggedUserId
 
         const formMsg = document.getElementById("formMessage");
 
+        if (!user_id && !id) {
+          formMsg.style.color = "red";
+          formMsg.innerText = "ID pengguna tidak ditemukan. Silakan login ulang.";
+          return;
+        }
+
         try {
           let res;
+          const bodyData = { sumber, tanggal, jumlah: Number(jumlah) };
+
           if (id) {
             // Update (user_id tidak diupdate agar tidak berubah owner)
             res = await fetch(`${BASE_URL}/income/${id}`, {
               method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sumber, tanggal, jumlah }),
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + token,
+              },
+              body: JSON.stringify(bodyData),
             });
           } else {
             // Create, sertakan user_id dari login
             res = await fetch(`${BASE_URL}/income`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sumber, tanggal, jumlah, user_id }),
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + token,
+              },
+              body: JSON.stringify({ ...bodyData, user_id: loggedUserId }), // Ensure user_id is passed for creation
             });
           }
           const result = await res.json();
@@ -295,7 +336,7 @@
           }
         } catch (err) {
           formMsg.style.color = "red";
-          formMsg.innerText = "Error server.";
+          formMsg.innerText = "Error server: " + err.message;
         }
       };
 

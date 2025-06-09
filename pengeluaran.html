@@ -59,7 +59,6 @@
         </ul>
       </div>
       <div class="content">
-        <!-- Navbar -->
         <div class="navbar">
           <div class="profile-dropdown" id="profileDropdown">
             <div class="profile-avatar">AD</div>
@@ -74,7 +73,6 @@
           </div>
         </div>
 
-        <!-- Form Pengeluaran -->
         <div class="container">
           <h2>Pencatatan Pengeluaran</h2>
           <form id="expenseForm">
@@ -91,7 +89,6 @@
               <label for="jumlah">Jumlah (Rp)</label>
               <input type="number" id="jumlah" required min="1" />
             </div>
-            <!-- User ID disembunyikan dan otomatis diisi -->
             <input type="hidden" id="user_id" />
             <button type="submit" class="btn-tambah">
               Tambah / Update Pengeluaran
@@ -138,23 +135,24 @@
               .join("")
           );
           return JSON.parse(jsonPayload);
-        } catch {
+        } catch (error) {
+          console.error("Error decoding JWT:", error);
           return null;
         }
       }
 
       const decoded = parseJwt(token);
-      if (!decoded) {
-        alert("Token tidak valid, silakan login ulang.");
+      let loggedUserId = null;
+      if (decoded && decoded.exp * 1000 > Date.now()) {
+        loggedUserId = decoded.id;
+      } else {
+        alert("Token tidak valid atau sudah kadaluarsa, silakan login ulang.");
         localStorage.removeItem("token");
         window.location.href = "login.html";
       }
 
-      // Simpan userId login
-      const loggedUserId = decoded.id;
-
       // Set nama user dan inisial avatar di navbar
-      const userName = decoded.name || "User";
+      const userName = decoded ? decoded.name || "User" : "User";
       document.querySelector(".profile-name").textContent = userName;
       function getInitials(name) {
         return name
@@ -168,38 +166,50 @@
         getInitials(userName);
 
       // Set user_id di form sesuai user login
-      document.getElementById("user_id").value = loggedUserId;
+      if (loggedUserId) {
+        document.getElementById("user_id").value = loggedUserId;
+      }
 
       // Fetch semua pengeluaran (tanpa filter user_id)
       async function fetchExpenses() {
-        const res = await fetch(`${BASE_URL}/expense`);
-        const data = await res.json();
-        const tbody = document.getElementById("expenseTableBody");
-        tbody.innerHTML = "";
+        try {
+          const res = await fetch(`${BASE_URL}/expense`, {
+            headers: {
+              Authorization: "Bearer " + token, // Tambahkan token di header
+            },
+          });
+          const data = await res.json();
+          const tbody = document.getElementById("expenseTableBody");
+          tbody.innerHTML = "";
 
-        (data.data || []).forEach((expense, idx) => {
-          let actionButtons = "";
-          if (expense.user_id === loggedUserId) {
-            actionButtons = `
+          (data.data || []).forEach((expense, idx) => {
+            let actionButtons = "";
+            if (expense.user_id === loggedUserId) {
+              actionButtons = `
               <button class="btn-edit" data-id="${expense.id}">✏️</button>
               <button class="btn-delete" data-id="${expense.id}">🗑️</button>
             `;
-          } else {
-            actionButtons = "-";
-          }
+            } else {
+              actionButtons = "-";
+            }
 
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
             <td>${idx + 1}</td>
             <td>${expense.sumber}</td>
             <td>${expense.tanggal}</td>
             <td>Rp ${Number(expense.jumlah).toLocaleString()}</td>
             <td>${actionButtons}</td>
           `;
-          tbody.appendChild(tr);
-        });
+            tbody.appendChild(tr);
+          });
 
-        attachActionButtons();
+          attachActionButtons();
+        } catch (error) {
+          console.error("Error fetching expenses:", error);
+          document.getElementById("expenseTableBody").innerHTML =
+            '<tr><td colspan="5" style="color:red;">Gagal memuat data pengeluaran.</td></tr>';
+        }
       }
 
       // Event tombol edit dan delete
@@ -207,16 +217,27 @@
         document.querySelectorAll(".btn-edit").forEach((btn) => {
           btn.onclick = async () => {
             const id = btn.getAttribute("data-id");
-            const res = await fetch(`${BASE_URL}/expense`);
-            const data = await res.json();
-            const expense = data.data.find((item) => item.id == id);
-            if (!expense) return alert("Data tidak ditemukan.");
+            try {
+              // Fetch single expense data by ID
+              const res = await fetch(`${BASE_URL}/expense/${id}`, {
+                headers: {
+                  Authorization: "Bearer " + token,
+                },
+              });
+              const data = await res.json();
+              const expense = data.data; // Assuming API returns single object under 'data'
 
-            document.getElementById("expenseId").value = expense.id;
-            document.getElementById("sumber").value = expense.sumber;
-            document.getElementById("tanggal").value = expense.tanggal;
-            document.getElementById("jumlah").value = expense.jumlah;
-            document.getElementById("user_id").value = expense.user_id; // tetap user_id asli
+              if (!expense) return alert("Data tidak ditemukan.");
+
+              document.getElementById("expenseId").value = expense.id;
+              document.getElementById("sumber").value = expense.sumber;
+              document.getElementById("tanggal").value = expense.tanggal;
+              document.getElementById("jumlah").value = expense.jumlah;
+              document.getElementById("user_id").value = expense.user_id; // tetap user_id asli
+            } catch (error) {
+              console.error("Error fetching expense for edit:", error);
+              alert("Error saat mengambil data pengeluaran untuk diedit.");
+            }
           };
         });
 
@@ -227,16 +248,20 @@
             try {
               const res = await fetch(`${BASE_URL}/expense/${id}`, {
                 method: "DELETE",
+                headers: {
+                  Authorization: "Bearer " + token, // Tambahkan token di header
+                },
               });
               if (res.ok) {
                 alert("Data pengeluaran berhasil dihapus.");
                 fetchExpenses();
                 clearForm();
               } else {
-                alert("Gagal menghapus data.");
+                const errorData = await res.json();
+                alert(errorData.message || "Gagal menghapus data.");
               }
-            } catch {
-              alert("Error saat menghapus data.");
+            } catch (error) {
+              alert("Error saat menghapus data: " + error.message);
             }
           };
         });
@@ -248,7 +273,9 @@
         document.getElementById("sumber").value = "";
         document.getElementById("tanggal").value = "";
         document.getElementById("jumlah").value = "";
-        document.getElementById("user_id").value = loggedUserId;
+        if (loggedUserId) {
+          document.getElementById("user_id").value = loggedUserId;
+        }
       }
 
       // Submit tambah/update pengeluaran
@@ -258,23 +285,37 @@
         const sumber = document.getElementById("sumber").value;
         const tanggal = document.getElementById("tanggal").value;
         const jumlah = document.getElementById("jumlah").value;
-        const user_id = document.getElementById("user_id").value;
+        const user_id = document.getElementById("user_id").value; // This should already be loggedUserId
 
         const formMsg = document.getElementById("formMessage");
 
+        if (!user_id && !id) {
+          formMsg.style.color = "red";
+          formMsg.innerText = "ID pengguna tidak ditemukan. Silakan login ulang.";
+          return;
+        }
+
         try {
           let res;
+          const bodyData = { sumber, tanggal, jumlah: Number(jumlah) };
+
           if (id) {
             res = await fetch(`${BASE_URL}/expense/${id}`, {
               method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sumber, tanggal, jumlah }),
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + token,
+              },
+              body: JSON.stringify(bodyData),
             });
           } else {
             res = await fetch(`${BASE_URL}/expense`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sumber, tanggal, jumlah, user_id }),
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: "Bearer " + token,
+              },
+              body: JSON.stringify({ ...bodyData, user_id: loggedUserId }),
             });
           }
           const result = await res.json();
@@ -291,7 +332,7 @@
           }
         } catch (err) {
           formMsg.style.color = "red";
-          formMsg.innerText = "Error server.";
+          formMsg.innerText = "Error server: " + err.message;
         }
       };
 

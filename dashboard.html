@@ -8,7 +8,6 @@
   </head>
   <body>
     <div class="main-container">
-      <!-- Sidebar -->
       <div class="sidebar">
         <h2>RekapKeu</h2>
         <ul>
@@ -20,9 +19,7 @@
           <li><a href="karyawan.html">Karyawan</a></li>
         </ul>
       </div>
-      <!-- Main Content Area -->
       <div class="content">
-        <!-- Navbar -->
         <div class="navbar">
           <div class="profile-dropdown" id="profileDropdown">
             <div class="profile-avatar">AD</div>
@@ -36,7 +33,6 @@
             </div>
           </div>
         </div>
-        <!-- Dashboard Summary -->
         <div class="dashboard-summary">
           <center><div class="dashboard-title">Dashboard RekapKeu</div></center>
           <div class="card-grid" id="summaryContainer">Loading...</div>
@@ -66,20 +62,22 @@
               .join("")
           );
           return JSON.parse(jsonPayload);
-        } catch {
+        } catch (error) {
+          console.error("Error decoding JWT:", error);
           return null;
         }
       }
 
       const decoded = parseJwt(token);
-      if (!decoded) {
-        alert("Token tidak valid, silakan login ulang.");
+      if (!decoded || decoded.exp * 1000 < Date.now()) {
+        // Check if token is decoded and not expired
+        alert("Token tidak valid atau sudah kadaluarsa, silakan login ulang.");
         localStorage.removeItem("token");
         window.location.href = "login.html";
       }
 
       // Set nama dan inisial avatar di navbar sesuai user login
-      const userName = decoded.name || "User";
+      const userName = decoded ? decoded.name || "User" : "User";
       document.querySelector(".profile-name").textContent = userName;
 
       function getInitials(name) {
@@ -97,7 +95,11 @@
       // Fetch summary (tetap pakai userId=1 seperti kode awal)
       async function fetchSummary() {
         // Tidak perlu kirim user_id, agar backend hitung semua data global
-        const res = await fetch(`${BASE_URL}/dashboard-summary`);
+        const res = await fetch(`${BASE_URL}/dashboard-summary`, {
+          headers: {
+            Authorization: "Bearer " + token, // Tambahkan token di header
+          },
+        });
         const data = await res.json();
 
         if (!res.ok) {

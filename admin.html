@@ -89,7 +89,6 @@
   </head>
   <body>
     <div class="main-container">
-      <!-- Sidebar -->
       <div class="sidebar">
         <h2>RekapKeu</h2>
         <ul>
@@ -102,9 +101,7 @@
         </ul>
       </div>
 
-      <!-- Main content -->
       <div class="content">
-        <!-- Navbar -->
         <div class="navbar">
           <div class="profile-dropdown" id="profileDropdown">
             <div class="profile-avatar">AD</div>
@@ -119,7 +116,6 @@
           </div>
         </div>
 
-        <!-- Isi halaman profil -->
         <div class="card">
           <h2>Kelola Profil Admin</h2>
 
@@ -141,7 +137,6 @@
           <div class="message" id="message"></div>
         </div>
 
-        <!-- Daftar User -->
         <div class="card" id="userTableCard" style="margin-top: 16px">
           <h2>Daftar Semua User</h2>
           <div id="usersTableContainer">
@@ -175,18 +170,22 @@
               .join("")
           );
           return JSON.parse(jsonPayload);
-        } catch {
-          return null;
+        } catch (error) {
+          console.error("Error decoding JWT:", error);
+          return null; // Return null if decoding fails
         }
       }
 
       const decoded = parseJwt(token);
-      if (!decoded) {
-        alert("Token tidak valid, silakan login ulang.");
+      let userId = null; // Initialize userId outside the if block
+      if (decoded && decoded.exp * 1000 > Date.now()) {
+        // Check if token is decoded and not expired
+        userId = decoded.id;
+      } else {
+        alert("Token tidak valid atau sudah kadaluarsa, silakan login ulang.");
         localStorage.removeItem("token");
         window.location.href = "login.html";
       }
-      const userId = decoded.id;
 
       // Cek apakah user adalah admin (id = 1)
       if (userId === 1) {
@@ -198,6 +197,7 @@
 
       // Fetch user data
       async function fetchUser() {
+        if (!userId) return; // Prevent fetching if userId is not set due to invalid token
         try {
           const res = await fetch(`${BASE_URL}/user/${userId}`, {
             headers: {
@@ -234,6 +234,7 @@
 
       // Update user
       async function updateUser() {
+        if (!userId) return; // Prevent update if userId is not set
         const name = document.getElementById("nameInput").value.trim();
         const email = document.getElementById("emailInput").value.trim();
         const password = document.getElementById("passwordInput").value;
@@ -256,6 +257,7 @@
           if (res.ok) {
             showMessage("Profil berhasil diperbarui.", false);
             document.getElementById("passwordInput").value = "";
+            fetchUser(); // Refresh user data after update
           } else {
             showMessage(json.message || "Gagal memperbarui profil.", true);
           }
@@ -335,18 +337,18 @@
       }
 
       // Edit user dari tabel
-      window.editUser = async function (userId) {
+      window.editUser = async function (userIdToEdit) {
         const nameCell = document.querySelector(
-          `[data-uid="${userId}"][data-field="name"]`
+          `[data-uid="${userIdToEdit}"][data-field="name"]`
         );
         const emailCell = document.querySelector(
-          `[data-uid="${userId}"][data-field="email"]`
+          `[data-uid="${userIdToEdit}"][data-field="email"]`
         );
         const name = nameCell.textContent.trim();
         const email = emailCell.textContent.trim();
         // Bisa tambahkan konfirmasi
         try {
-          const res = await fetch(`${BASE_URL}/user/${userId}`, {
+          const res = await fetch(`${BASE_URL}/user/${userIdToEdit}`, {
             method: "PUT",
             headers: {
               "Content-Type": "application/json",
@@ -367,10 +369,10 @@
       };
 
       // Hapus user
-      window.deleteUser = async function (userId) {
+      window.deleteUser = async function (userIdToDelete) {
         if (!confirm("Yakin ingin menghapus user ini?")) return;
         try {
-          const res = await fetch(`${BASE_URL}/user/${userId}`, {
+          const res = await fetch(`${BASE_URL}/user/${userIdToDelete}`, {
             method: "DELETE",
             headers: { Authorization: "Bearer " + token },
           });
