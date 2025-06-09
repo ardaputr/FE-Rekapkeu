@@ -1,32 +1,19 @@
-# Gunakan image Nginx resmi yang ringan sebagai base image
+# Use a lightweight Nginx image
 FROM nginx:alpine
 
-# Hapus default konfigurasi Nginx
-# Ini opsional, tapi baik untuk memastikan tidak ada konfigurasi yang tidak diinginkan
-RUN rm -rf /etc/nginx/conf.d/*
+# Remove the default Nginx configuration file
+RUN rm /etc/nginx/conf.d/default.conf
 
-# Salin file-file HTML Anda ke dalam direktori Nginx default
-# Pastikan struktur folder Anda sesuai dengan path di bawah.
-# Jika file HTML Anda berada langsung di root folder proyek Anda,
-# maka perintah ini akan menyalinnya ke /usr/share/nginx/html/
-COPY . /usr/share/nginx/html/
+# Copy your custom Nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Salin konfigurasi Nginx kustom Anda (jika ada)
-# Anda bisa membuat file `nginx.conf` atau `default.conf` di folder yang sama dengan Dockerfile
-# Jika tidak ada, Anda bisa menghapus baris ini atau menggunakan konfigurasi default Nginx
-# Misalnya, buat file `default.conf` di root proyek Anda dengan isi:
-# server {
-#     listen 80;
-#     location / {
-#         root   /usr/share/nginx/html;
-#         index  index.html;
-#         try_files $uri $uri/ /index.html; # Penting untuk aplikasi SPA atau jika Anda ingin fallback ke index.html
-#     }
-# }
-# COPY default.conf /etc/nginx/conf.d/default.conf
+# Copy all your static files (HTML, CSS, JS, etc.) into the Nginx web root
+# The '.' indicates the current directory where your Dockerfile is located.
+# This assumes your HTML files and 'style' directory are at the root level of your project.
+COPY . /usr/share/nginx/html
 
-# Exposure port 80 karena Nginx berjalan di port tersebut secara default
+# Expose port 80 to the outside world
 EXPOSE 80
 
-# Jalankan Nginx saat container dimulai
+# Command to run Nginx in the foreground
 CMD ["nginx", "-g", "daemon off;"]
