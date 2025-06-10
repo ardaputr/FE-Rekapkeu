@@ -124,6 +124,9 @@
         window.location.href = "login.html";
       }
 
+      // Variable untuk menyimpan data expense yang sudah di-fetch
+      let expensesData = [];
+
       // Decode JWT untuk dapatkan data user
       function parseJwt(token) {
         try {
@@ -185,28 +188,29 @@
           }
 
           const data = await res.json();
+          expensesData = data.data || []; // Simpan data untuk keperluan edit
           const tbody = document.getElementById("expenseTableBody");
           tbody.innerHTML = "";
 
-          (data.data || []).forEach((expense, idx) => {
+          expensesData.forEach((expense, idx) => {
             let actionButtons = "";
             if (expense.user_id === loggedUserId) {
               actionButtons = `
-          <button class="btn-edit" data-id="${expense.id}">✏️</button>
-          <button class="btn-delete" data-id="${expense.id}">🗑️</button>
-        `;
+      <button class="btn-edit" data-id="${expense.id}">✏️</button>
+      <button class="btn-delete" data-id="${expense.id}">🗑️</button>
+    `;
             } else {
               actionButtons = "-";
             }
 
             const tr = document.createElement("tr");
             tr.innerHTML = `
-        <td>${idx + 1}</td>
-        <td>${expense.sumber}</td>
-        <td>${expense.tanggal}</td>
-        <td>Rp ${Number(expense.jumlah).toLocaleString()}</td>
-        <td>${actionButtons}</td>
-      `;
+    <td>${idx + 1}</td>
+    <td>${expense.sumber}</td>
+    <td>${expense.tanggal}</td>
+    <td>Rp ${Number(expense.jumlah).toLocaleString()}</td>
+    <td>${actionButtons}</td>
+  `;
             tbody.appendChild(tr);
           });
 
@@ -229,28 +233,15 @@
             console.log("Editing expense with ID:", id); // Debug log
 
             try {
-              // Fetch single expense data by ID
-              const res = await fetch(`${BASE_URL}/expense/${id}`, {
-                headers: {
-                  Authorization: "Bearer " + token,
-                },
-              });
-
-              console.log("Edit fetch response status:", res.status); // Debug log
-
-              if (!res.ok) {
-                throw new Error(`HTTP error! status: ${res.status}`);
-              }
-
-              const data = await res.json();
-              console.log("Edit fetch response data:", data); // Debug log
-
-              const expense = data.data;
+              // Cari data expense dari array yang sudah di-fetch
+              const expense = expensesData.find((item) => item.id == id);
 
               if (!expense) {
                 alert("Data tidak ditemukan.");
                 return;
               }
+
+              console.log("Found expense data:", expense); // Debug log
 
               // Populate form with existing data
               document.getElementById("expenseId").value = expense.id;
@@ -264,9 +255,9 @@
                 .getElementById("expenseForm")
                 .scrollIntoView({ behavior: "smooth" });
             } catch (error) {
-              console.error("Error fetching expense for edit:", error);
+              console.error("Error preparing expense for edit:", error);
               alert(
-                "Error saat mengambil data pengeluaran untuk diedit: " +
+                "Error saat menyiapkan data pengeluaran untuk diedit: " +
                   error.message
               );
             }
