@@ -146,7 +146,7 @@
         try {
           const res = await fetch(`${BASE_URL}/employee`, {
             headers: {
-              Authorization: "Bearer " + token, // Tambahkan token di header
+              Authorization: "Bearer " + token,
             },
           });
           const data = await res.json();
@@ -157,23 +157,30 @@
             let actionButtons = "";
             if (emp.user_id === loggedUserId) {
               actionButtons = `
-              <button class="btn-edit" data-id="${emp.id}">✏️</button>
-              <button class="btn-delete" data-id="${emp.id}">🗑️</button>
-            `;
+          <button class="btn-edit" 
+                  data-id="${emp.id}"
+                  data-nama="${emp.nama}"
+                  data-posisi="${emp.posisi}"
+                  data-alamat="${emp.alamat || ""}"
+                  data-umur="${emp.umur || ""}"
+                  data-kontak="${emp.kontak || ""}"
+                  data-user-id="${emp.user_id}">✏️</button>
+          <button class="btn-delete" data-id="${emp.id}">🗑️</button>
+        `;
             } else {
               actionButtons = "-";
             }
 
             const tr = document.createElement("tr");
             tr.innerHTML = `
-            <td>${idx + 1}</td>
-            <td>${emp.nama}</td>
-            <td>${emp.posisi}</td>
-            <td>${emp.alamat || "-"}</td>
-            <td>${emp.umur || "-"}</td>
-            <td>${emp.kontak || "-"}</td>
-            <td>${actionButtons}</td>
-          `;
+        <td>${idx + 1}</td>
+        <td>${emp.nama}</td>
+        <td>${emp.posisi}</td>
+        <td>${emp.alamat || "-"}</td>
+        <td>${emp.umur || "-"}</td>
+        <td>${emp.kontak || "-"}</td>
+        <td>${actionButtons}</td>
+      `;
             tbody.appendChild(tr);
           });
 
@@ -188,35 +195,27 @@
       // Pasang event tombol edit dan delete
       function attachActionButtons() {
         document.querySelectorAll(".btn-edit").forEach((btn) => {
-          btn.onclick = async () => {
+          btn.onclick = () => {
             const id = btn.getAttribute("data-id");
-            try {
-              // Fetch single employee data by ID
-              const res = await fetch(`${BASE_URL}/employee/${id}`, {
-                headers: {
-                  Authorization: "Bearer " + token,
-                },
-              });
-              const data = await res.json();
-              const emp = data.data; // Assuming API returns single object under 'data'
+            const nama = btn.getAttribute("data-nama");
+            const posisi = btn.getAttribute("data-posisi");
+            const alamat = btn.getAttribute("data-alamat");
+            const umur = btn.getAttribute("data-umur");
+            const kontak = btn.getAttribute("data-kontak");
+            const user_id = btn.getAttribute("data-user-id");
 
-              if (!emp) return alert("Data tidak ditemukan.");
-
-              document.getElementById("employeeId").value = emp.id;
-              document.getElementById("nama").value = emp.nama;
-              document.getElementById("posisi").value = emp.posisi;
-              document.getElementById("alamat").value = emp.alamat || "";
-              document.getElementById("umur").value = emp.umur || "";
-              document.getElementById("kontak").value = emp.kontak || "";
-              // User id tetap sesuai pemilik data
-              document.getElementById("user_id").value = emp.user_id;
-            } catch (error) {
-              console.error("Error fetching employee for edit:", error);
-              alert("Error saat mengambil data karyawan untuk diedit.");
-            }
+            // Fill the form with employee data
+            document.getElementById("employeeId").value = id;
+            document.getElementById("nama").value = nama;
+            document.getElementById("posisi").value = posisi;
+            document.getElementById("alamat").value = alamat;
+            document.getElementById("umur").value = umur;
+            document.getElementById("kontak").value = kontak;
+            document.getElementById("user_id").value = user_id;
           };
         });
 
+        // Delete button logic remains the same
         document.querySelectorAll(".btn-delete").forEach((btn) => {
           btn.onclick = async () => {
             const id = btn.getAttribute("data-id");
@@ -225,7 +224,7 @@
               const res = await fetch(`${BASE_URL}/employee/${id}`, {
                 method: "DELETE",
                 headers: {
-                  Authorization: "Bearer " + token, // Tambahkan token di header
+                  Authorization: "Bearer " + token,
                 },
               });
               if (res.ok) {
