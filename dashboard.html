@@ -109,47 +109,78 @@
 
           const data = await res.json();
 
-          // Tampilkan info apakah data global (admin) atau personal
-          const dataType = data.isAdmin
-            ? "(Data Global - Admin)"
-            : "(Data Personal)";
+          // Tampilkan data berdasarkan role user
+          let html = "";
 
-          const html = `
-      <div class="card income">
-        <div class="card-label">Pendapatan Hari Ini ${dataType}</div>
-        <div class="card-value">Rp ${data.incomeToday.toLocaleString()}</div>
-      </div>
-      <div class="card income">
-        <div class="card-label">Total Pendapatan ${dataType}</div>
-        <div class="card-value">Rp ${data.totalIncome.toLocaleString()}</div>
-      </div>
-      <div class="card expense">
-        <div class="card-label">Pengeluaran Hari Ini ${dataType}</div>
-        <div class="card-value">Rp ${data.expenseToday.toLocaleString()}</div>
-      </div>
-      <div class="card expense">
-        <div class="card-label">Total Pengeluaran ${dataType}</div>
-        <div class="card-value">Rp ${data.totalExpense.toLocaleString()}</div>
-      </div>
-      <div class="card balance">
-        <div class="card-label">Sisa Uang ${dataType}</div>
-        <div class="card-value">Rp ${data.saldo.toLocaleString()}</div>
-      </div>
-      <div class="card products">
-        <div class="card-label">Total Produk ${dataType}</div>
-        <div class="card-value">${data.totalProducts}</div>
-      </div>
-      <div class="card employees">
-        <div class="card-label">Karyawan ${dataType}</div>
-        <div class="card-value">${data.totalEmployees}</div>
-      </div>
-    `;
+          if (data.isAdmin) {
+            // Admin melihat data global termasuk sisa uang
+            html = `
+        <div class="card income">
+          <div class="card-label">Pendapatan Hari Ini</div>
+          <div class="card-value">Rp ${data.incomeToday.toLocaleString()}</div>
+        </div>
+        <div class="card income">
+          <div class="card-label">Total Pendapatan</div>
+          <div class="card-value">Rp ${data.totalIncome.toLocaleString()}</div>
+        </div>
+        <div class="card expense">
+          <div class="card-label">Pengeluaran Hari Ini</div>
+          <div class="card-value">Rp ${data.expenseToday.toLocaleString()}</div>
+        </div>
+        <div class="card expense">
+          <div class="card-label">Total Pengeluaran</div>
+          <div class="card-value">Rp ${data.totalExpense.toLocaleString()}</div>
+        </div>
+        <div class="card balance">
+          <div class="card-label">Sisa Uang</div>
+          <div class="card-value">Rp ${data.saldo.toLocaleString()}</div>
+        </div>
+        <div class="card products">
+          <div class="card-label">Total Produk</div>
+          <div class="card-value">${data.totalProducts}</div>
+        </div>
+        <div class="card employees">
+          <div class="card-label">Karyawan</div>
+          <div class="card-value">${data.totalEmployees}</div>
+        </div>
+      `;
+          } else {
+            // User biasa melihat data pribadi tanpa sisa uang
+            html = `
+        <div class="card income">
+          <div class="card-label">Pendapatan Hari Ini</div>
+          <div class="card-value">Rp ${data.incomeToday.toLocaleString()}</div>
+        </div>
+        <div class="card income">
+          <div class="card-label">Total Pendapatan</div>
+          <div class="card-value">Rp ${data.totalIncome.toLocaleString()}</div>
+        </div>
+        <div class="card expense">
+          <div class="card-label">Pengeluaran Hari Ini</div>
+          <div class="card-value">Rp ${data.expenseToday.toLocaleString()}</div>
+        </div>
+        <div class="card expense">
+          <div class="card-label">Total Pengeluaran</div>
+          <div class="card-value">Rp ${data.totalExpense.toLocaleString()}</div>
+        </div>
+        <div class="card products">
+          <div class="card-label">Total Produk</div>
+          <div class="card-value">${data.totalProducts}</div>
+        </div>
+        <div class="card employees">
+          <div class="card-label">Karyawan</div>
+          <div class="card-value">${data.totalEmployees}</div>
+        </div>
+      `;
+          }
+
           document.getElementById("summaryContainer").innerHTML = html;
 
-          // Debug info (bisa dihapus di production)
+          // Debug info
           console.log(
-            `Dashboard loaded for user ID: ${data.user_id}, isAdmin: ${data.isAdmin}`
+            `Dashboard loaded for user: ${userName} (ID: ${data.user_id})`
           );
+          console.log(`Is Admin: ${data.isAdmin}`);
         } catch (error) {
           console.error("Error fetching summary:", error);
           document.getElementById(
