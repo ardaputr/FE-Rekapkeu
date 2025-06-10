@@ -289,6 +289,7 @@
       // Submit tambah/update pemasukan
       document.getElementById("incomeForm").onsubmit = async function (e) {
         e.preventDefault();
+        const token = localStorage.getItem("token");
         const id = document.getElementById("incomeId").value;
         const sumber = document.getElementById("sumber").value;
         const tanggal = document.getElementById("tanggal").value;
@@ -314,10 +315,10 @@
               method: "PUT",
               headers: {
                 "Content-Type": "application/json",
-                // Authorization: "Bearer " + token,
-                Authorization: `Bearer ${token}`,
+                Authorization: "Bearer " + token,
+                // Authorization: `Bearer ${token}`,
               },
-              body: JSON.stringify(bodyData),
+              body: JSON.stringify({ sumber, tanggal, jumlah }),
             });
           } else {
             // Create, sertakan user_id dari login
