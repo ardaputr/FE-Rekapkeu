@@ -119,6 +119,7 @@
 
       // Ambil token dari localStorage
       const token = localStorage.getItem("token");
+
       if (!token) {
         alert("Anda belum login, silakan login dulu.");
         window.location.href = "login.html";
@@ -176,7 +177,8 @@
         try {
           const res = await fetch(`${BASE_URL}/income`, {
             headers: {
-              Authorization: "Bearer " + token, // Tambahkan token di header
+              // Authorization: "Bearer " + token, // Tambahkan token di header
+              Authorization: `Bearer ${token}`,
             },
           });
           const data = await res.json();
@@ -222,8 +224,11 @@
             try {
               // Fetch single income data by ID
               const res = await fetch(`${BASE_URL}/income/${id}`, {
+                method: "PUT",
                 headers: {
-                  Authorization: "Bearer " + token,
+                  "Content-Type": "application/json",
+                  // Authorization: "Bearer " + token,
+                  Authorization: `Bearer ${token}`,
                 },
               });
               const data = await res.json();
@@ -309,7 +314,8 @@
               method: "PUT",
               headers: {
                 "Content-Type": "application/json",
-                Authorization: "Bearer " + token,
+                // Authorization: "Bearer " + token,
+                Authorization: `Bearer ${token}`,
               },
               body: JSON.stringify(bodyData),
             });
