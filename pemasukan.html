@@ -124,6 +124,9 @@
         window.location.href = "login.html";
       }
 
+      // Variable untuk menyimpan data income yang sudah di-fetch
+      let incomesData = [];
+
       // Decode JWT untuk dapatkan data user
       function parseJwt(token) {
         try {
@@ -185,29 +188,30 @@
           }
 
           const data = await res.json();
+          incomesData = data.data || []; // Simpan data untuk keperluan edit
           const tbody = document.getElementById("incomeTableBody");
           tbody.innerHTML = "";
 
-          (data.data || []).forEach((income, idx) => {
+          incomesData.forEach((income, idx) => {
             let actionButtons = "";
             // Tampilkan tombol hanya jika user_id sama dengan user login
             if (income.user_id === loggedUserId) {
               actionButtons = `
-          <button class="btn-edit" data-id="${income.id}">✏️</button>
-          <button class="btn-delete" data-id="${income.id}">🗑️</button>
-        `;
+      <button class="btn-edit" data-id="${income.id}">✏️</button>
+      <button class="btn-delete" data-id="${income.id}">🗑️</button>
+    `;
             } else {
               actionButtons = "-";
             }
 
             const tr = document.createElement("tr");
             tr.innerHTML = `
-        <td>${idx + 1}</td>
-        <td>${income.sumber}</td>
-        <td>${income.tanggal}</td>
-        <td>Rp ${Number(income.jumlah).toLocaleString()}</td>
-        <td>${actionButtons}</td>
-      `;
+    <td>${idx + 1}</td>
+    <td>${income.sumber}</td>
+    <td>${income.tanggal}</td>
+    <td>Rp ${Number(income.jumlah).toLocaleString()}</td>
+    <td>${actionButtons}</td>
+  `;
             tbody.appendChild(tr);
           });
 
@@ -230,28 +234,15 @@
             console.log("Editing income with ID:", id); // Debug log
 
             try {
-              // Fetch single income data by ID
-              const res = await fetch(`${BASE_URL}/income/${id}`, {
-                headers: {
-                  Authorization: "Bearer " + token,
-                },
-              });
-
-              console.log("Edit fetch response status:", res.status); // Debug log
-
-              if (!res.ok) {
-                throw new Error(`HTTP error! status: ${res.status}`);
-              }
-
-              const data = await res.json();
-              console.log("Edit fetch response data:", data); // Debug log
-
-              const income = data.data;
+              // Cari data income dari array yang sudah di-fetch
+              const income = incomesData.find((item) => item.id == id);
 
               if (!income) {
                 alert("Data tidak ditemukan.");
                 return;
               }
+
+              console.log("Found income data:", income); // Debug log
 
               // Populate form with existing data
               document.getElementById("incomeId").value = income.id;
@@ -265,9 +256,9 @@
                 .getElementById("incomeForm")
                 .scrollIntoView({ behavior: "smooth" });
             } catch (error) {
-              console.error("Error fetching income for edit:", error);
+              console.error("Error preparing income for edit:", error);
               alert(
-                "Error saat mengambil data pemasukan untuk diedit: " +
+                "Error saat menyiapkan data pemasukan untuk diedit: " +
                   error.message
               );
             }
