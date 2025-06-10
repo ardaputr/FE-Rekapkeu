@@ -79,6 +79,7 @@
 
       // Set nama dan inisial avatar di navbar sesuai user login
       const userName = decoded ? decoded.name || "User" : "User";
+      const userId = decoded ? decoded.id : null;
       document.querySelector(".profile-name").textContent = userName;
 
       function getInitials(name) {
@@ -93,53 +94,68 @@
       document.querySelector(".profile-avatar").textContent =
         getInitials(userName);
 
-      // Fetch summary (tetap pakai userId=1 seperti kode awal)
+      // Fetch summary dengan token authorization
       async function fetchSummary() {
-        // Tidak perlu kirim user_id, agar backend hitung semua data global
-        const res = await fetch(`${BASE_URL}/dashboard-summary`, {
-          headers: {
-            Authorization: "Bearer " + token, // Tambahkan token di header
-          },
-        });
-        const data = await res.json();
+        try {
+          const res = await fetch(`${BASE_URL}/dashboard-summary`, {
+            headers: {
+              Authorization: "Bearer " + token,
+            },
+          });
 
-        if (!res.ok) {
-          document.getElementById("summaryContainer").innerText =
-            "Gagal mengambil data.";
-          return;
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+
+          const data = await res.json();
+
+          // Tampilkan info apakah data global (admin) atau personal
+          const dataType = data.isAdmin
+            ? "(Data Global - Admin)"
+            : "(Data Personal)";
+
+          const html = `
+      <div class="card income">
+        <div class="card-label">Pendapatan Hari Ini ${dataType}</div>
+        <div class="card-value">Rp ${data.incomeToday.toLocaleString()}</div>
+      </div>
+      <div class="card income">
+        <div class="card-label">Total Pendapatan ${dataType}</div>
+        <div class="card-value">Rp ${data.totalIncome.toLocaleString()}</div>
+      </div>
+      <div class="card expense">
+        <div class="card-label">Pengeluaran Hari Ini ${dataType}</div>
+        <div class="card-value">Rp ${data.expenseToday.toLocaleString()}</div>
+      </div>
+      <div class="card expense">
+        <div class="card-label">Total Pengeluaran ${dataType}</div>
+        <div class="card-value">Rp ${data.totalExpense.toLocaleString()}</div>
+      </div>
+      <div class="card balance">
+        <div class="card-label">Sisa Uang ${dataType}</div>
+        <div class="card-value">Rp ${data.saldo.toLocaleString()}</div>
+      </div>
+      <div class="card products">
+        <div class="card-label">Total Produk ${dataType}</div>
+        <div class="card-value">${data.totalProducts}</div>
+      </div>
+      <div class="card employees">
+        <div class="card-label">Karyawan ${dataType}</div>
+        <div class="card-value">${data.totalEmployees}</div>
+      </div>
+    `;
+          document.getElementById("summaryContainer").innerHTML = html;
+
+          // Debug info (bisa dihapus di production)
+          console.log(
+            `Dashboard loaded for user ID: ${data.user_id}, isAdmin: ${data.isAdmin}`
+          );
+        } catch (error) {
+          console.error("Error fetching summary:", error);
+          document.getElementById(
+            "summaryContainer"
+          ).innerHTML = `<div class="error-message">Gagal mengambil data: ${error.message}</div>`;
         }
-
-        const html = `
-    <div class="card income">
-      <div class="card-label">Pendapatan (Hari Ini)</div>
-      <div class="card-value">Rp ${data.incomeToday.toLocaleString()}</div>
-    </div>
-    <div class="card income">
-      <div class="card-label">Total Pendapatan</div>
-      <div class="card-value">Rp ${data.totalIncome.toLocaleString()}</div>
-    </div>
-    <div class="card expense">
-      <div class="card-label">Pengeluaran (Hari Ini)</div>
-      <div class="card-value">Rp ${data.expenseToday.toLocaleString()}</div>
-    </div>
-    <div class="card expense">
-      <div class="card-label">Total Pengeluaran</div>
-      <div class="card-value">Rp ${data.totalExpense.toLocaleString()}</div>
-    </div>
-    <div class="card balance">
-      <div class="card-label">Sisa Uang</div>
-      <div class="card-value">Rp ${data.saldo.toLocaleString()}</div>
-    </div>
-    <div class="card products">
-      <div class="card-label">Total Produk</div>
-      <div class="card-value">${data.totalProducts}</div>
-    </div>
-    <div class="card employees">
-      <div class="card-label">Karyawan</div>
-      <div class="card-value">${data.totalEmployees}</div>
-    </div>
-  `;
-        document.getElementById("summaryContainer").innerHTML = html;
       }
 
       fetchSummary();
