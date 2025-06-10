@@ -119,7 +119,6 @@
 
       // Ambil token dari localStorage
       const token = localStorage.getItem("token");
-
       if (!token) {
         alert("Anda belum login, silakan login dulu.");
         window.location.href = "login.html";
@@ -177,10 +176,14 @@
         try {
           const res = await fetch(`${BASE_URL}/income`, {
             headers: {
-              // Authorization: "Bearer " + token, // Tambahkan token di header
-              Authorization: `Bearer ${token}`,
+              Authorization: "Bearer " + token,
             },
           });
+
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+
           const data = await res.json();
           const tbody = document.getElementById("incomeTableBody");
           tbody.innerHTML = "";
@@ -194,7 +197,7 @@
           <button class="btn-delete" data-id="${income.id}">🗑️</button>
         `;
             } else {
-              actionButtons = "-"; // Bisa juga kosong: "" atau pesan lain
+              actionButtons = "-";
             }
 
             const tr = document.createElement("tr");
@@ -212,53 +215,79 @@
         } catch (error) {
           console.error("Error fetching incomes:", error);
           document.getElementById("incomeTableBody").innerHTML =
-            '<tr><td colspan="5" style="color:red;">Gagal memuat data pemasukan.</td></tr>';
+            '<tr><td colspan="5" style="color:red;">Gagal memuat data pemasukan: ' +
+            error.message +
+            "</td></tr>";
         }
       }
 
-      // Event tombol edit dan delete, hanya untuk tombol yang ada (user yang boleh edit)
+      // Event tombol edit dan delete
       function attachActionButtons() {
+        // Handle Edit Button
         document.querySelectorAll(".btn-edit").forEach((btn) => {
           btn.onclick = async () => {
             const id = btn.getAttribute("data-id");
+            console.log("Editing income with ID:", id); // Debug log
+
             try {
               // Fetch single income data by ID
               const res = await fetch(`${BASE_URL}/income/${id}`, {
-                method: "PUT",
                 headers: {
-                  "Content-Type": "application/json",
-                  // Authorization: "Bearer " + token,
-                  Authorization: `Bearer ${token}`,
+                  Authorization: "Bearer " + token,
                 },
               });
+
+              console.log("Edit fetch response status:", res.status); // Debug log
+
+              if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+              }
+
               const data = await res.json();
-              const income = data.data; // Assuming API returns single object under 'data'
+              console.log("Edit fetch response data:", data); // Debug log
 
-              if (!income) return alert("Data tidak ditemukan.");
+              const income = data.data;
 
+              if (!income) {
+                alert("Data tidak ditemukan.");
+                return;
+              }
+
+              // Populate form with existing data
               document.getElementById("incomeId").value = income.id;
               document.getElementById("sumber").value = income.sumber;
               document.getElementById("tanggal").value = income.tanggal;
               document.getElementById("jumlah").value = income.jumlah;
-              document.getElementById("user_id").value = income.user_id; // tetap user_id data asli
+              document.getElementById("user_id").value = income.user_id;
+
+              // Scroll to form
+              document
+                .getElementById("incomeForm")
+                .scrollIntoView({ behavior: "smooth" });
             } catch (error) {
               console.error("Error fetching income for edit:", error);
-              alert("Error saat mengambil data pemasukan untuk diedit.");
+              alert(
+                "Error saat mengambil data pemasukan untuk diedit: " +
+                  error.message
+              );
             }
           };
         });
 
+        // Handle Delete Button
         document.querySelectorAll(".btn-delete").forEach((btn) => {
           btn.onclick = async () => {
             const id = btn.getAttribute("data-id");
             if (!confirm("Yakin ingin menghapus pemasukan ini?")) return;
+
             try {
               const res = await fetch(`${BASE_URL}/income/${id}`, {
                 method: "DELETE",
                 headers: {
-                  Authorization: "Bearer " + token, // Tambahkan token di header
+                  Authorization: "Bearer " + token,
                 },
               });
+
               if (res.ok) {
                 alert("Data pemasukan berhasil dihapus.");
                 fetchIncomes();
@@ -268,6 +297,7 @@
                 alert(errorData.message || "Gagal menghapus data.");
               }
             } catch (error) {
+              console.error("Error deleting income:", error);
               alert("Error saat menghapus data: " + error.message);
             }
           };
@@ -280,7 +310,7 @@
         document.getElementById("sumber").value = "";
         document.getElementById("tanggal").value = "";
         document.getElementById("jumlah").value = "";
-        // User_id tetap diisi sesuai login, tidak dihapus
+        // User_id tetap diisi sesuai login
         if (loggedUserId) {
           document.getElementById("user_id").value = loggedUserId;
         }
@@ -289,12 +319,11 @@
       // Submit tambah/update pemasukan
       document.getElementById("incomeForm").onsubmit = async function (e) {
         e.preventDefault();
-        const token = localStorage.getItem("token");
         const id = document.getElementById("incomeId").value;
         const sumber = document.getElementById("sumber").value;
         const tanggal = document.getElementById("tanggal").value;
         const jumlah = document.getElementById("jumlah").value;
-        const user_id = document.getElementById("user_id").value; // This should already be loggedUserId
+        const user_id = document.getElementById("user_id").value;
 
         const formMsg = document.getElementById("formMessage");
 
@@ -305,33 +334,46 @@
           return;
         }
 
+        // Validate input
+        if (!sumber || !tanggal || !jumlah) {
+          formMsg.style.color = "red";
+          formMsg.innerText = "Semua field wajib diisi!";
+          return;
+        }
+
         try {
           let res;
           const bodyData = { sumber, tanggal, jumlah: Number(jumlah) };
 
           if (id) {
-            // Update (user_id tidak diupdate agar tidak berubah owner)
+            // Update existing income
+            console.log("Updating income with ID:", id, "Data:", bodyData); // Debug log
             res = await fetch(`${BASE_URL}/income/${id}`, {
               method: "PUT",
               headers: {
                 "Content-Type": "application/json",
                 Authorization: "Bearer " + token,
-                // Authorization: `Bearer ${token}`,
               },
-              body: JSON.stringify({ sumber, tanggal, jumlah }),
+              body: JSON.stringify(bodyData),
             });
           } else {
-            // Create, sertakan user_id dari login
+            // Create new income
+            console.log("Creating new income. Data:", bodyData); // Debug log
             res = await fetch(`${BASE_URL}/income`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
                 Authorization: "Bearer " + token,
               },
-              body: JSON.stringify({ ...bodyData, user_id: loggedUserId }), // Ensure user_id is passed for creation
+              body: JSON.stringify({ ...bodyData, user_id: loggedUserId }),
             });
           }
+
+          console.log("Submit response status:", res.status); // Debug log
+
           const result = await res.json();
+          console.log("Submit response data:", result); // Debug log
+
           if (res.ok) {
             formMsg.style.color = "green";
             formMsg.innerText = id
@@ -344,6 +386,7 @@
             formMsg.innerText = result.message || "Gagal simpan data.";
           }
         } catch (err) {
+          console.error("Submit error:", err); // Debug log
           formMsg.style.color = "red";
           formMsg.innerText = "Error server: " + err.message;
         }
@@ -358,14 +401,16 @@
       document.addEventListener("DOMContentLoaded", () => {
         const dropdown = document.querySelector(".navbar .profile-dropdown");
 
-        dropdown.addEventListener("click", (e) => {
-          e.stopPropagation();
-          dropdown.classList.toggle("active");
-        });
+        if (dropdown) {
+          dropdown.addEventListener("click", (e) => {
+            e.stopPropagation();
+            dropdown.classList.toggle("active");
+          });
 
-        document.addEventListener("click", () => {
-          dropdown.classList.remove("active");
-        });
+          document.addEventListener("click", () => {
+            dropdown.classList.remove("active");
+          });
+        }
 
         const adminPageBtn = document.getElementById("adminPageBtn");
         if (adminPageBtn) {
