@@ -234,38 +234,42 @@
       }
 
       // Update user
-      async function updateUser() {
-        if (!userId) return; // Prevent update if userId is not set
-        const name = document.getElementById("nameInput").value.trim();
-        const email = document.getElementById("emailInput").value.trim();
-        const password = document.getElementById("passwordInput").value;
-
-        if (!name || !email) {
-          showMessage("Nama dan email wajib diisi.", true);
-          return;
-        }
-
+      exports.updateUser = async (req, res) => {
         try {
-          const res = await fetch(`${BASE_URL}/user/${userId}`, {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: "Bearer " + token,
-            },
-            body: JSON.stringify({ name, email, password }),
-          });
-          const json = await res.json();
-          if (res.ok) {
-            showMessage("Profil berhasil diperbarui.", false);
-            document.getElementById("passwordInput").value = "";
-            fetchUser(); // Refresh user data after update
-          } else {
-            showMessage(json.message || "Gagal memperbarui profil.", true);
+          const userId = parseInt(req.params.id);
+          const requestingUserId = req.user.id;
+
+          // Check if user can update this profile
+          // Allow if: 1) User updating their own profile, OR 2) User is admin (id = 1)
+          if (userId !== requestingUserId && requestingUserId !== 1) {
+            return res.status(403).json({ message: "Akses ditolak" });
           }
+
+          const { name, email, password } = req.body;
+
+          const user = await User.findByPk(userId);
+          if (!user) {
+            return res.status(404).json({ message: "User tidak ditemukan" });
+          }
+
+          // Update user data
+          user.name = name || user.name;
+          user.email = email || user.email;
+
+          // Only update password if provided and not empty
+          if (password && password.trim() !== "") {
+            const hash = await bcrypt.hash(password, 10);
+            user.password = hash;
+          }
+
+          await user.save();
+          res.json({ message: "Profil berhasil diperbarui." });
         } catch (err) {
-          showMessage("Error server: " + err.message, true);
+          res
+            .status(500)
+            .json({ message: "Gagal memperbarui profil.", error: err.message });
         }
-      }
+      };
 
       function showMessage(msg, isError) {
         const messageDiv = document.getElementById("message");
