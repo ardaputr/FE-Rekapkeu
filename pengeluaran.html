@@ -176,9 +176,14 @@
         try {
           const res = await fetch(`${BASE_URL}/expense`, {
             headers: {
-              Authorization: "Bearer " + token, // Tambahkan token di header
+              Authorization: "Bearer " + token,
             },
           });
+
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+
           const data = await res.json();
           const tbody = document.getElementById("expenseTableBody");
           tbody.innerHTML = "";
@@ -187,21 +192,21 @@
             let actionButtons = "";
             if (expense.user_id === loggedUserId) {
               actionButtons = `
-              <button class="btn-edit" data-id="${expense.id}">✏️</button>
-              <button class="btn-delete" data-id="${expense.id}">🗑️</button>
-            `;
+          <button class="btn-edit" data-id="${expense.id}">✏️</button>
+          <button class="btn-delete" data-id="${expense.id}">🗑️</button>
+        `;
             } else {
               actionButtons = "-";
             }
 
             const tr = document.createElement("tr");
             tr.innerHTML = `
-            <td>${idx + 1}</td>
-            <td>${expense.sumber}</td>
-            <td>${expense.tanggal}</td>
-            <td>Rp ${Number(expense.jumlah).toLocaleString()}</td>
-            <td>${actionButtons}</td>
-          `;
+        <td>${idx + 1}</td>
+        <td>${expense.sumber}</td>
+        <td>${expense.tanggal}</td>
+        <td>Rp ${Number(expense.jumlah).toLocaleString()}</td>
+        <td>${actionButtons}</td>
+      `;
             tbody.appendChild(tr);
           });
 
@@ -209,15 +214,20 @@
         } catch (error) {
           console.error("Error fetching expenses:", error);
           document.getElementById("expenseTableBody").innerHTML =
-            '<tr><td colspan="5" style="color:red;">Gagal memuat data pengeluaran.</td></tr>';
+            '<tr><td colspan="5" style="color:red;">Gagal memuat data pengeluaran: ' +
+            error.message +
+            "</td></tr>";
         }
       }
 
       // Event tombol edit dan delete
       function attachActionButtons() {
+        // Handle Edit Button
         document.querySelectorAll(".btn-edit").forEach((btn) => {
           btn.onclick = async () => {
             const id = btn.getAttribute("data-id");
+            console.log("Editing expense with ID:", id); // Debug log
+
             try {
               // Fetch single expense data by ID
               const res = await fetch(`${BASE_URL}/expense/${id}`, {
@@ -225,34 +235,58 @@
                   Authorization: "Bearer " + token,
                 },
               });
+
+              console.log("Edit fetch response status:", res.status); // Debug log
+
+              if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+              }
+
               const data = await res.json();
-              const expense = data.data; // Assuming API returns single object under 'data'
+              console.log("Edit fetch response data:", data); // Debug log
 
-              if (!expense) return alert("Data tidak ditemukan.");
+              const expense = data.data;
 
+              if (!expense) {
+                alert("Data tidak ditemukan.");
+                return;
+              }
+
+              // Populate form with existing data
               document.getElementById("expenseId").value = expense.id;
               document.getElementById("sumber").value = expense.sumber;
               document.getElementById("tanggal").value = expense.tanggal;
               document.getElementById("jumlah").value = expense.jumlah;
-              document.getElementById("user_id").value = expense.user_id; // tetap user_id asli
+              document.getElementById("user_id").value = expense.user_id;
+
+              // Scroll to form
+              document
+                .getElementById("expenseForm")
+                .scrollIntoView({ behavior: "smooth" });
             } catch (error) {
               console.error("Error fetching expense for edit:", error);
-              alert("Error saat mengambil data pengeluaran untuk diedit.");
+              alert(
+                "Error saat mengambil data pengeluaran untuk diedit: " +
+                  error.message
+              );
             }
           };
         });
 
+        // Handle Delete Button
         document.querySelectorAll(".btn-delete").forEach((btn) => {
           btn.onclick = async () => {
             const id = btn.getAttribute("data-id");
             if (!confirm("Yakin ingin menghapus pengeluaran ini?")) return;
+
             try {
               const res = await fetch(`${BASE_URL}/expense/${id}`, {
                 method: "DELETE",
                 headers: {
-                  Authorization: "Bearer " + token, // Tambahkan token di header
+                  Authorization: "Bearer " + token,
                 },
               });
+
               if (res.ok) {
                 alert("Data pengeluaran berhasil dihapus.");
                 fetchExpenses();
@@ -262,6 +296,7 @@
                 alert(errorData.message || "Gagal menghapus data.");
               }
             } catch (error) {
+              console.error("Error deleting expense:", error);
               alert("Error saat menghapus data: " + error.message);
             }
           };
@@ -286,7 +321,7 @@
         const sumber = document.getElementById("sumber").value;
         const tanggal = document.getElementById("tanggal").value;
         const jumlah = document.getElementById("jumlah").value;
-        const user_id = document.getElementById("user_id").value; // This should already be loggedUserId
+        const user_id = document.getElementById("user_id").value;
 
         const formMsg = document.getElementById("formMessage");
 
@@ -297,11 +332,20 @@
           return;
         }
 
+        // Validate input
+        if (!sumber || !tanggal || !jumlah) {
+          formMsg.style.color = "red";
+          formMsg.innerText = "Semua field wajib diisi!";
+          return;
+        }
+
         try {
           let res;
           const bodyData = { sumber, tanggal, jumlah: Number(jumlah) };
 
           if (id) {
+            // Update existing expense
+            console.log("Updating expense with ID:", id, "Data:", bodyData); // Debug log
             res = await fetch(`${BASE_URL}/expense/${id}`, {
               method: "PUT",
               headers: {
@@ -311,6 +355,8 @@
               body: JSON.stringify(bodyData),
             });
           } else {
+            // Create new expense
+            console.log("Creating new expense. Data:", bodyData); // Debug log
             res = await fetch(`${BASE_URL}/expense`, {
               method: "POST",
               headers: {
@@ -320,7 +366,12 @@
               body: JSON.stringify({ ...bodyData, user_id: loggedUserId }),
             });
           }
+
+          console.log("Submit response status:", res.status); // Debug log
+
           const result = await res.json();
+          console.log("Submit response data:", result); // Debug log
+
           if (res.ok) {
             formMsg.style.color = "green";
             formMsg.innerText = id
@@ -333,6 +384,7 @@
             formMsg.innerText = result.message || "Gagal simpan data.";
           }
         } catch (err) {
+          console.error("Submit error:", err); // Debug log
           formMsg.style.color = "red";
           formMsg.innerText = "Error server: " + err.message;
         }
@@ -347,14 +399,16 @@
       document.addEventListener("DOMContentLoaded", () => {
         const dropdown = document.querySelector(".navbar .profile-dropdown");
 
-        dropdown.addEventListener("click", (e) => {
-          e.stopPropagation();
-          dropdown.classList.toggle("active");
-        });
+        if (dropdown) {
+          dropdown.addEventListener("click", (e) => {
+            e.stopPropagation();
+            dropdown.classList.toggle("active");
+          });
 
-        document.addEventListener("click", () => {
-          dropdown.classList.remove("active");
-        });
+          document.addEventListener("click", () => {
+            dropdown.classList.remove("active");
+          });
+        }
 
         const adminPageBtn = document.getElementById("adminPageBtn");
         if (adminPageBtn) {
