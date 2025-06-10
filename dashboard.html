@@ -71,7 +71,6 @@
 
       const decoded = parseJwt(token);
       if (!decoded || decoded.exp * 1000 < Date.now()) {
-        // Check if token is decoded and not expired
         alert("Token tidak valid atau sudah kadaluarsa, silakan login ulang.");
         localStorage.removeItem("token");
         window.location.href = "login.html";
@@ -94,9 +93,30 @@
       document.querySelector(".profile-avatar").textContent =
         getInitials(userName);
 
+      // Variable untuk menyimpan interval auto-refresh
+      let refreshInterval;
+      let isRefreshing = false;
+
+      // Fungsi untuk format tanggal dan waktu
+      function formatDateTime(dateString) {
+        if (!dateString) return "Tidak ada data";
+        const date = new Date(dateString);
+        return date.toLocaleString("id-ID", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        });
+      }
+
       // Fetch summary dengan token authorization
       async function fetchSummary() {
+        if (isRefreshing) return; // Prevent multiple simultaneous requests
+
         try {
+          isRefreshing = true;
           const res = await fetch(`${BASE_URL}/dashboard-summary`, {
             headers: {
               Authorization: "Bearer " + token,
@@ -109,58 +129,174 @@
 
           const data = await res.json();
 
-          // Tampilkan info apakah data global (admin) atau personal
-          const dataType = data.isAdmin
-            ? "(Data Global - Admin)"
-            : "(Data Personal)";
+          // Tentukan warna saldo berdasarkan positif/negatif
+          const saldoClass = data.saldo >= 0 ? "positive" : "negative";
+          const saldoColor = data.saldo >= 0 ? "#27ae60" : "#e74c3c";
 
           const html = `
-      <div class="card income">
-        <div class="card-label">Pendapatan Hari Ini ${dataType}</div>
-        <div class="card-value">Rp ${data.incomeToday.toLocaleString()}</div>
+      <div class="dashboard-header">
+        <h2>Dashboard Global - Semua Data</h2>
+        <div class="last-update">
+          <small>Terakhir diperbarui: ${formatDateTime(
+            data.lastUpdated
+          )}</small>
+        </div>
       </div>
-      <div class="card income">
-        <div class="card-label">Total Pendapatan ${dataType}</div>
-        <div class="card-value">Rp ${data.totalIncome.toLocaleString()}</div>
+      
+      <div class="cards-container">
+        <div class="card income">
+          <div class="card-icon">💰</div>
+          <div class="card-content">
+            <div class="card-label">Pendapatan Hari Ini</div>
+            <div class="card-value">Rp ${data.incomeToday.toLocaleString(
+              "id-ID"
+            )}</div>
+          </div>
+        </div>
+        
+        <div class="card income">
+          <div class="card-icon">📈</div>
+          <div class="card-content">
+            <div class="card-label">Total Pendapatan</div>
+            <div class="card-value">Rp ${data.totalIncome.toLocaleString(
+              "id-ID"
+            )}</div>
+          </div>
+        </div>
+        
+        <div class="card expense">
+          <div class="card-icon">💸</div>
+          <div class="card-content">
+            <div class="card-label">Pengeluaran Hari Ini</div>
+            <div class="card-value">Rp ${data.expenseToday.toLocaleString(
+              "id-ID"
+            )}</div>
+          </div>
+        </div>
+        
+        <div class="card expense">
+          <div class="card-icon">📉</div>
+          <div class="card-content">
+            <div class="card-label">Total Pengeluaran</div>
+            <div class="card-value">Rp ${data.totalExpense.toLocaleString(
+              "id-ID"
+            )}</div>
+          </div>
+        </div>
+        
+        <div class="card balance ${saldoClass}">
+          <div class="card-icon">${data.saldo >= 0 ? "💵" : "⚠️"}</div>
+          <div class="card-content">
+            <div class="card-label">Saldo Bersih</div>
+            <div class="card-value" style="color: ${saldoColor}">
+              Rp ${data.saldo.toLocaleString("id-ID")}
+            </div>
+          </div>
+        </div>
+        
+        <div class="card products">
+          <div class="card-icon">📦</div>
+          <div class="card-content">
+            <div class="card-label">Total Produk</div>
+            <div class="card-value">${data.totalProducts}</div>
+          </div>
+        </div>
+        
+        <div class="card employees">
+          <div class="card-icon">👥</div>
+          <div class="card-content">
+            <div class="card-label">Total Karyawan</div>
+            <div class="card-value">${data.totalEmployees}</div>
+          </div>
+        </div>
       </div>
-      <div class="card expense">
-        <div class="card-label">Pengeluaran Hari Ini ${dataType}</div>
-        <div class="card-value">Rp ${data.expenseToday.toLocaleString()}</div>
-      </div>
-      <div class="card expense">
-        <div class="card-label">Total Pengeluaran ${dataType}</div>
-        <div class="card-value">Rp ${data.totalExpense.toLocaleString()}</div>
-      </div>
-      <div class="card balance">
-        <div class="card-label">Sisa Uang ${dataType}</div>
-        <div class="card-value">Rp ${data.saldo.toLocaleString()}</div>
-      </div>
-      <div class="card products">
-        <div class="card-label">Total Produk ${dataType}</div>
-        <div class="card-value">${data.totalProducts}</div>
-      </div>
-      <div class="card employees">
-        <div class="card-label">Karyawan ${dataType}</div>
-        <div class="card-value">${data.totalEmployees}</div>
+      
+      <div class="refresh-controls">
+        <button id="refreshBtn" class="refresh-btn">🔄 Refresh Manual</button>
+        <button id="autoRefreshBtn" class="auto-refresh-btn">⏰ Auto Refresh: OFF</button>
+        <div class="refresh-status">
+          <small>Data pendapatan terakhir: ${formatDateTime(
+            data.latestIncomeUpdate
+          )}</small><br>
+          <small>Data pengeluaran terakhir: ${formatDateTime(
+            data.latestExpenseUpdate
+          )}</small>
+        </div>
       </div>
     `;
+
           document.getElementById("summaryContainer").innerHTML = html;
 
-          // Debug info (bisa dihapus di production)
-          console.log(
-            `Dashboard loaded for user ID: ${data.user_id}, isAdmin: ${data.isAdmin}`
-          );
+          // Setup refresh controls
+          setupRefreshControls();
+
+          // Debug info
+          console.log(`Dashboard loaded - Global data for all users`);
+          console.log("Data:", data);
         } catch (error) {
           console.error("Error fetching summary:", error);
           document.getElementById(
             "summaryContainer"
-          ).innerHTML = `<div class="error-message">Gagal mengambil data: ${error.message}</div>`;
+          ).innerHTML = `<div class="error-message">
+        <h3>❌ Gagal mengambil data</h3>
+        <p>${error.message}</p>
+        <button onclick="fetchSummary()" class="retry-btn">Coba Lagi</button>
+      </div>`;
+        } finally {
+          isRefreshing = false;
         }
       }
 
+      // Setup refresh controls
+      function setupRefreshControls() {
+        const refreshBtn = document.getElementById("refreshBtn");
+        const autoRefreshBtn = document.getElementById("autoRefreshBtn");
+
+        if (refreshBtn) {
+          refreshBtn.onclick = () => {
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = "🔄 Refreshing...";
+            fetchSummary().finally(() => {
+              refreshBtn.disabled = false;
+              refreshBtn.textContent = "🔄 Refresh Manual";
+            });
+          };
+        }
+
+        if (autoRefreshBtn) {
+          autoRefreshBtn.onclick = toggleAutoRefresh;
+        }
+      }
+
+      // Toggle auto refresh
+      function toggleAutoRefresh() {
+        const btn = document.getElementById("autoRefreshBtn");
+
+        if (refreshInterval) {
+          // Stop auto refresh
+          clearInterval(refreshInterval);
+          refreshInterval = null;
+          btn.textContent = "⏰ Auto Refresh: OFF";
+          btn.style.backgroundColor = "#6c757d";
+        } else {
+          // Start auto refresh (setiap 30 detik)
+          refreshInterval = setInterval(fetchSummary, 30000);
+          btn.textContent = "⏰ Auto Refresh: ON (30s)";
+          btn.style.backgroundColor = "#28a745";
+        }
+      }
+
+      // Initial load
       fetchSummary();
 
-      // Dropdown navbar profile (klik, bukan hover)
+      // Cleanup saat halaman ditutup
+      window.addEventListener("beforeunload", () => {
+        if (refreshInterval) {
+          clearInterval(refreshInterval);
+        }
+      });
+
+      // Dropdown navbar profile
       document.addEventListener("DOMContentLoaded", () => {
         const dropdown = document.querySelector(".navbar .profile-dropdown");
 
@@ -182,6 +318,9 @@
         // Logout
         document.getElementById("logoutBtn").onclick = function (e) {
           e.preventDefault();
+          if (refreshInterval) {
+            clearInterval(refreshInterval);
+          }
           localStorage.removeItem("token");
           window.location.href = "login.html";
         };
